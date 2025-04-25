@@ -4,6 +4,7 @@ import {useEffect, useState} from 'react';
 import {CollegeNotice, getBulletinAnnouncements, getCollegeNotices} from '@/services/college-notices';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Switch} from '@/components/ui/switch';
+import {useTheme} from 'next-themes';
 
 const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}) => (
   <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col">
@@ -32,17 +33,8 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 );
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
-  const [bulletinTextColor, setBulletinTextColor] = useState<'black' | 'white'>('black');
-
-  useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    setBulletinTextColor(isDarkMode ? 'white' : 'black');
-  }, []);
-
-  useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    setBulletinTextColor(isDarkMode ? 'white' : 'black');
-  }, []);
+  const {theme} = useTheme();
+  const textColor = theme === 'dark' ? 'text-white' : 'text-black';
 
   return (
     <div className="relative w-full h-10 bg-accent-color py-2 overflow-hidden">
@@ -50,8 +42,7 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
         {announcements.map((announcement, index) => (
           <span
             key={index}
-            className={`mx-4 inline-block transition-colors duration-300`}
-            style={{color: bulletinTextColor}}
+            className={`mx-4 inline-block transition-colors duration-300 ${textColor}`}
           >
             {announcement}
           </span>
@@ -90,30 +81,25 @@ const DateTimeDisplay = () => {
 };
 
 const ThemeToggle = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const {theme, setTheme} = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsDarkMode(document.documentElement.classList.contains('dark'));
-    }
+    setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className="flex items-center space-x-2">
-      <p className="text-sm text-muted-foreground">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</p>
-      <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={toggleTheme} />
+      <p className="text-sm text-muted-foreground">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</p>
+      <Switch
+        id="dark-mode"
+        checked={theme === 'dark'}
+        onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+      />
     </div>
   );
 };
@@ -152,7 +138,7 @@ export default function Home() {
           <DateTimeDisplay />
           <ThemeToggle />
         </div>
-      </header>
+      </div>
       <main className="container mx-auto px-4">
         <div className="grid grid-cols-2 grid-rows-2 gap-4">
           <NoticeBlock title="Text Notices" notices={textNotices} />
