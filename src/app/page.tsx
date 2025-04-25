@@ -20,7 +20,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium">{notice.title}</p>
-                  <p className="text-sm text-muted-foreground">{new Date(notice.dateTime).toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground">{new Date(notice.dateTime).toLocaleDateString()}</p>
                 </div>
               </div>
             </li>
@@ -37,7 +37,7 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentIndex(prevIndex => (prevIndex + 1) % announcements.length);
-    }, 5000); // Change announcement every 5 seconds
+    }, 5000);
 
     return () => clearInterval(intervalId);
   }, [announcements.length]);
@@ -48,11 +48,11 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
         className="relative whitespace-nowrap"
         style={{
           animation: `marquee calc(var(--marquee-duration) * 1s) linear infinite`,
-          '--marquee-duration': announcements.length * 5, // Adjust speed based on content length
+          '--marquee-duration': announcements.length * 5,
         }}
       >
         {announcements.map((announcement, index) => (
-          <span key={index} className="mx-4">
+          <span key={index} className="mx-4 inline-block">
             {announcement}
           </span>
         ))}
@@ -72,7 +72,16 @@ const DateTimeDisplay = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  return <div className="text-sm text-muted-foreground">{dateTime.toLocaleTimeString()}</div>;
+  const formattedDateTime = dateTime.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  });
+
+  return <div className="text-sm text-muted-foreground">{formattedDateTime}</div>;
 };
 
 const ThemeToggle = () => {
