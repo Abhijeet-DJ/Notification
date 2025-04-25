@@ -7,6 +7,7 @@ import {Switch} from '@/components/ui/switch';
 import {useTheme} from 'next-themes';
 import DateTimeDisplay from '@/components/DateTimeDisplay';
 import ClientOnly from '@/components/ClientOnly';
+import {MoonIcon, SunIcon} from 'lucide-react';
 
 const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}) => (
   <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col">
@@ -55,7 +56,7 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
 };
 
 const ThemeToggle = () => {
-  const {theme, setTheme} = useTheme();
+  const {setTheme, theme} = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -67,14 +68,13 @@ const ThemeToggle = () => {
   }
 
   return (
-    <div className="flex items-center space-x-2">
-      <p className="text-sm text-muted-foreground">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</p>
-      <Switch
-        id="dark-mode"
-        checked={theme === 'dark'}
-        onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-      />
-    </div>
+    <button
+      className="rounded-full bg-secondary p-2 shadow-md transition-colors duration-300 hover:bg-accent-color hover:text-white"
+      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+    >
+      {theme === 'light' ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
+      <span className="sr-only">Toggle dark mode</span>
+    </button>
   );
 };
 
