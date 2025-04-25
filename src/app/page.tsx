@@ -32,14 +32,26 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 );
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
+  const [bulletinTextColor, setBulletinTextColor] = useState<'black' | 'white'>('black');
+
+  useEffect(() => {
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    setBulletinTextColor(isDarkMode ? 'white' : 'black');
+  }, []);
+
+  useEffect(() => {
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    setBulletinTextColor(isDarkMode ? 'white' : 'black');
+  }, []);
 
   return (
     <div className="relative w-full h-10 bg-accent-color py-2 overflow-hidden">
-      <div className="w-full whitespace-nowrap animate-marquee">
+      <div className="w-full whitespace-nowrap animate-marquee" style={{animationPlayState: 'running'}}>
         {announcements.map((announcement, index) => (
           <span
             key={index}
-            className={`mx-4 inline-block text-bulletin-text transition-colors duration-300`}
+            className={`mx-4 inline-block transition-colors duration-300`}
+            style={{color: bulletinTextColor}}
           >
             {announcement}
           </span>

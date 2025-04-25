@@ -77,6 +77,30 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
       contentType: 'video',
       content: 'https://sample-videos.com/video123/mp4/480/big_buck_bunny_480p_5mb.mp4',
     },
+    {
+      title: 'Another Important Announcement',
+      dateTime: '2024-01-09T18:00:00Z',
+      contentType: 'text',
+      content: 'Registration for spring semester is now open.',
+    },
+    {
+      title: 'Research Paper PDF',
+      dateTime: '2024-01-10T20:30:00Z',
+      contentType: 'pdf',
+      content: 'https://www.unece.org/fileadmin/DAM/trans/danger/publi/ghs/ghs_rev08/English/GHS_Rev08_E_part1.pdf',
+    },
+    {
+      title: 'Graduation Ceremony Image',
+      dateTime: '2024-01-11T08:15:00Z',
+      contentType: 'image',
+      content: 'https://media.istockphoto.com/id/520049967/photo/graduation.jpg?s=612x612&w=0&k=20&c=EOtd49hq9bqDXvW9j5K-m5U6LGLBjfK3VrsQ3wMOQfs=',
+    },
+    {
+      title: 'Guest Lecture Video',
+      dateTime: '2024-01-12T11:45:00Z',
+      contentType: 'video',
+      content: 'https://sample-videos.com/video123/mp4/480/rocket_320x240.mp4',
+    },
   ];
 }
 
