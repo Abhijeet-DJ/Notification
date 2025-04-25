@@ -149,7 +149,7 @@ export default function Home() {
         </div>
       </header>
       <main className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NoticeBlock title="Text Notices" notices={textNotices} />
           <NoticeBlock title="PDF Notices" notices={pdfNotices} />
           <NoticeBlock title="Image Notices" notices={imageNotices} />

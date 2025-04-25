@@ -39,19 +39,19 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
       title: 'New PDF Available',
       dateTime: '2024-01-02T14:30:00Z',
       contentType: 'pdf',
-      content: 'https://example.com/new_document.pdf',
+      content: 'https://vadimdez.dev/s/pdf-sample.pdf',
     },
     {
       title: 'Campus Photo',
       dateTime: '2024-01-03T09:15:00Z',
       contentType: 'image',
-      content: 'https://example.com/campus_photo.jpg',
+      content: 'https://fastly.picsum.photos/id/10/2500/1667.jpg?hmac=J04WWC_ebchx3WwzbM-Z4f6ttwWq6bLnaB9iyIKG-2Q',
     },
     {
       title: 'Video Update',
       dateTime: '2024-01-04T16:45:00Z',
       contentType: 'video',
-      content: 'https://example.com/video_update.mp4',
+      content: 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4',
     },
     {
       title: 'Orientation Day',
