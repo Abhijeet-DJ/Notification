@@ -23,17 +23,24 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
             <li key={index} className="py-2 border-b last:border-b-0">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-medium">{notice.title}</p>
-                  <p className="text-sm text-muted-foreground">{new Date(notice.date).toISOString().split('T')[0]}</p>
                   {notice.contentType === 'text' ? (
-                    <p className="text-sm">{notice.imageUrl}</p>
-                  ) : notice.contentType === 'pdf' ? (
-                    <a href={notice.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">View PDF</a>
-                  ) : notice.contentType === 'image' ? (
-                    <img src={notice.imageUrl} alt={notice.title} className="max-w-full h-auto" />
-                  ) : notice.contentType === 'video' ? (
-                    <video src={notice.imageUrl} controls className="max-w-full h-auto"></video>
-                  ) : null}
+                    <>
+                      <p className="font-medium">{notice.title}</p>
+                      <p className="text-sm">{notice.content}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">{notice.title}</p>
+                      <p className="text-sm text-muted-foreground">{new Date(notice.date).toISOString().split('T')[0]}</p>
+                      {notice.contentType === 'pdf' ? (
+                        <a href={notice.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">View PDF</a>
+                      ) : notice.contentType === 'image' ? (
+                        <img src={notice.imageUrl} alt={notice.title} className="max-w-full h-auto" />
+                      ) : notice.contentType === 'video' ? (
+                        <video src={notice.imageUrl} controls className="max-w-full h-auto"></video>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </div>
             </li>
@@ -88,20 +95,17 @@ const ThemeToggle = () => {
 };
 
 export default function Home() {
-  const [textNotices, setTextNotices] = useState<CollegeNotice[]>([]);
-  const [pdfNotices, setPdfNotices] = useState<CollegeNotice[]>([]);
-  const [imageNotices, setImageNotices] = useState<CollegeNotice[]>([]);
-  const [videoNotices, setVideoNotices] = useState<CollegeNotice[]>([]);
+  const [notices, setNotices] = useState<CollegeNotice[]>([]);
   const [bulletinAnnouncements, setBulletinAnnouncements] = useState<string[]>([]);
 
   useEffect(() => {
     const loadNotices = async () => {
-      const notices = await getCollegeNotices();
-
-      setTextNotices(notices.filter(notice => notice.contentType === 'text'));
-      setPdfNotices(notices.filter(notice => notice.contentType === 'pdf'));
-      setImageNotices(notices.filter(notice => notice.contentType === 'image'));
-      setVideoNotices(notices.filter(notice => notice.contentType === 'video'));
+      try {
+        const noticesData = await getCollegeNotices();
+        setNotices(noticesData);
+      } catch (error) {
+        console.error('Error loading notices:', error);
+      }
     };
 
     const loadAnnouncements = async () => {
@@ -112,6 +116,11 @@ export default function Home() {
     loadNotices();
     loadAnnouncements();
   }, []);
+
+  const textNotices = notices.filter(notice => notice.contentType === 'text');
+  const pdfNotices = notices.filter(notice => notice.contentType === 'pdf');
+  const imageNotices = notices.filter(notice => notice.contentType === 'image');
+  const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
   return (
     <div className="min-h-screen bg-clean-background py-6 transition-colors duration-300">
