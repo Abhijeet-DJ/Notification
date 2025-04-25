@@ -1,12 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from 'react';
-import { CollegeNotice, getBulletinAnnouncements, getCollegeNotices } from '@/services/college-notices';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from "@/components/ui/switch";
+import {useEffect, useState} from 'react';
+import {CollegeNotice, getBulletinAnnouncements, getCollegeNotices} from '@/services/college-notices';
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {Switch} from '@/components/ui/switch';
 
-const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice[] }) => (
+const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}) => (
   <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col">
     <CardHeader className="p-4">
       <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
@@ -32,12 +31,12 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   </Card>
 );
 
-const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
+const MovingBulletin = ({announcements}: {announcements: string[]}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % announcements.length);
+      setCurrentIndex(prevIndex => (prevIndex + 1) % announcements.length);
     }, 5000); // Change announcement every 5 seconds
 
     return () => clearInterval(intervalId);
@@ -46,9 +45,10 @@ const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
   return (
     <div className="relative w-full h-10 bg-accent-color text-white py-2 overflow-hidden">
       <div
-        className="relative whitespace-nowrap animate-marquee"
+        className="relative whitespace-nowrap"
         style={{
-          transform: `translateX(-${currentIndex * (100 / announcements.length)}%)`,
+          animation: `marquee calc(var(--marquee-duration) * 1s) linear infinite`,
+          '--marquee-duration': announcements.length * 5, // Adjust speed based on content length
         }}
       >
         {announcements.map((announcement, index) => (
@@ -72,11 +72,7 @@ const DateTimeDisplay = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  return (
-    <div className="text-sm text-muted-foreground">
-      {dateTime.toLocaleString()}
-    </div>
-  );
+  return <div className="text-sm text-muted-foreground">{dateTime.toLocaleTimeString()}</div>;
 };
 
 const ThemeToggle = () => {
@@ -96,14 +92,11 @@ const ThemeToggle = () => {
 
   return (
     <div className="flex items-center space-x-2">
-      <p className="text-sm text-muted-foreground">
-        {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-      </p>
+      <p className="text-sm text-muted-foreground">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</p>
       <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={toggleTheme} />
     </div>
   );
 };
-
 
 export default function Home() {
   const [textNotices, setTextNotices] = useState<CollegeNotice[]>([]);
@@ -154,5 +147,3 @@ export default function Home() {
     </div>
   );
 }
-
-
