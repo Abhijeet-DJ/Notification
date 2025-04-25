@@ -177,7 +177,7 @@ export default function Home() {
   const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
   return (
-    <div className="min-h-screen bg-clean-background py-6 transition-colors duration-300 flex flex-col">
+    <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300">
       <header className="text-center mb-4">
         <h1 className="text-3xl font-bold text-accent-color">College Notifier</h1>
         <div className="flex justify-center items-center space-x-4">
@@ -187,7 +187,7 @@ export default function Home() {
           </ClientOnly>
         </div>
       </header>
-      <main className="container mx-auto px-4 grid grid-cols-2 grid-rows-2 gap-4 flex-grow">
+      <main className="container mx-auto px-4 grid grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden">
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
         <NoticeBlock title="Image Notices" notices={imageNotices} />
