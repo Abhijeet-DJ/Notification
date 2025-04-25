@@ -24,7 +24,16 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium">{notice.title}</p>
-                  <p className="text-sm text-muted-foreground">{new Date(notice.dateTime).toISOString().split('T')[0]}</p>
+                  <p className="text-sm text-muted-foreground">{new Date(notice.date).toISOString().split('T')[0]}</p>
+                  {notice.contentType === 'text' ? (
+                    <p className="text-sm">{notice.imageUrl}</p>
+                  ) : notice.contentType === 'pdf' ? (
+                    <a href={notice.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">View PDF</a>
+                  ) : notice.contentType === 'image' ? (
+                    <img src={notice.imageUrl} alt={notice.title} className="max-w-full h-auto" />
+                  ) : notice.contentType === 'video' ? (
+                    <video src={notice.imageUrl} controls className="max-w-full h-auto"></video>
+                  ) : null}
                 </div>
               </div>
             </li>
@@ -88,6 +97,7 @@ export default function Home() {
   useEffect(() => {
     const loadNotices = async () => {
       const notices = await getCollegeNotices();
+
       setTextNotices(notices.filter(notice => notice.contentType === 'text'));
       setPdfNotices(notices.filter(notice => notice.contentType === 'pdf'));
       setImageNotices(notices.filter(notice => notice.contentType === 'image'));
@@ -131,4 +141,3 @@ export default function Home() {
     </div>
   );
 }
-
