@@ -138,7 +138,7 @@ export default function Home() {
           <DateTimeDisplay />
           <ThemeToggle />
         </div>
-      </div>
+      </header>
       <main className="container mx-auto px-4">
         <div className="grid grid-cols-2 grid-rows-2 gap-4">
           <NoticeBlock title="Text Notices" notices={textNotices} />
