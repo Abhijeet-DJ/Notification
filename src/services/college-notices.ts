@@ -39,25 +39,43 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
       title: 'New PDF Available',
       dateTime: '2024-01-02T14:30:00Z',
       contentType: 'pdf',
-      content: 'https://vadimdez.dev/s/pdf-sample.pdf',
+      content: 'https://www.africau.edu/images/default/sample.pdf',
     },
     {
       title: 'Campus Photo',
       dateTime: '2024-01-03T09:15:00Z',
       contentType: 'image',
-      content: 'https://fastly.picsum.photos/id/10/2500/1667.jpg?hmac=J04WWC_ebchx3WwzbM-Z4f6ttwWq6bLnaB9iyIKG-2Q',
+      content: 'https://www.simplilearn.com/ice9/free_resources_article_thumb/what_is_image_processing.jpg',
     },
     {
       title: 'Video Update',
       dateTime: '2024-01-04T16:45:00Z',
       contentType: 'video',
-      content: 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4',
+      content: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360p_10mb.mp4',
     },
     {
       title: 'Orientation Day',
       dateTime: '2024-01-05T10:00:00Z',
       contentType: 'text',
       content: 'Orientation day for new students on Jan 10th.',
+    },
+    {
+      title: 'Academic Calendar PDF',
+      dateTime: '2024-01-06T11:20:00Z',
+      contentType: 'pdf',
+      content: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    },
+    {
+      title: 'Student Activities Image',
+      dateTime: '2024-01-07T13:40:00Z',
+      contentType: 'image',
+      content: 'https://images.pexels.com/photos/270404/pexels-photo-270404.jpeg?auto=compress&cs=tinysrgb&dpr=1&w=500',
+    },
+    {
+      title: 'College Tour Video',
+      dateTime: '2024-01-08T15:55:00Z',
+      contentType: 'video',
+      content: 'https://sample-videos.com/video123/mp4/480/big_buck_bunny_480p_5mb.mp4',
     },
   ];
 }
@@ -74,5 +92,7 @@ export async function getBulletinAnnouncements(): Promise<string[]> {
     'Welcome to the College Notifier App!',
     'Check back often for important updates.',
     'Have a great semester!',
+    'Admissions Open for 2025',
+    'Scholarship Applications Available'
   ];
 }

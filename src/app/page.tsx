@@ -32,13 +32,6 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 );
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsDarkMode(document.documentElement.classList.contains('dark'));
-    }
-  }, []);
 
   return (
     <div className="relative w-full h-10 bg-accent-color py-2 overflow-hidden">
@@ -46,7 +39,7 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
         {announcements.map((announcement, index) => (
           <span
             key={index}
-            className={`mx-4 inline-block transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-black'}`}
+            className={`mx-4 inline-block text-bulletin-text transition-colors duration-300`}
           >
             {announcement}
           </span>
@@ -149,7 +142,7 @@ export default function Home() {
         </div>
       </header>
       <main className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 grid-rows-2 gap-4">
           <NoticeBlock title="Text Notices" notices={textNotices} />
           <NoticeBlock title="PDF Notices" notices={pdfNotices} />
           <NoticeBlock title="Image Notices" notices={imageNotices} />
