@@ -109,7 +109,9 @@ export default function Home() {
         <h1 className="text-3xl font-bold text-accent-color">College Notifier</h1>
         <div className="flex justify-center items-center space-x-4">
           <p className="text-muted-foreground">Stay updated with the latest announcements</p>
-          <DateTimeDisplay />
+          <ClientOnly>
+            <DateTimeDisplay />
+          </ClientOnly>
           <ClientOnly>
             <ThemeToggle />
           </ClientOnly>
