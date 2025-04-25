@@ -6,6 +6,7 @@ import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Switch} from '@/components/ui/switch';
 import {useTheme} from 'next-themes';
 import DateTimeDisplay from '@/components/DateTimeDisplay';
+import ClientOnly from '@/components/ClientOnly';
 
 const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}) => (
   <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col">
@@ -22,7 +23,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium">{notice.title}</p>
-                  <p className="text-sm text-muted-foreground">{new Date(notice.dateTime).toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground">{new Date(notice.dateTime).toISOString().split('T')[0]}</p>
                 </div>
               </div>
             </li>
@@ -109,7 +110,9 @@ export default function Home() {
         <div className="flex justify-center items-center space-x-4">
           <p className="text-muted-foreground">Stay updated with the latest announcements</p>
           <DateTimeDisplay />
-          <ThemeToggle />
+          <ClientOnly>
+            <ThemeToggle />
+          </ClientOnly>
         </div>
       </header>
       <main className="container mx-auto px-4">
