@@ -43,16 +43,16 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
   }, [announcements.length]);
 
   return (
-    <div className="relative w-full h-10 bg-accent-color text-white py-2 overflow-hidden">
+    <div className="relative w-full h-10 bg-accent-color py-2 overflow-hidden">
       <div
-        className="relative whitespace-nowrap text-primary-foreground"
+        className="relative whitespace-nowrap transition-transform duration-300"
         style={{
           animation: `marquee calc(var(--marquee-duration) * 1s) linear infinite`,
           '--marquee-duration': announcements.length * 5,
         }}
       >
         {announcements.map((announcement, index) => (
-          <span key={index} className="mx-4 inline-block">
+          <span key={index} className="mx-4 inline-block text-primary-foreground dark:text-background">
             {announcement}
           </span>
         ))}
