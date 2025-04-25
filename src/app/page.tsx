@@ -70,7 +70,7 @@ const ThemeToggle = () => {
   return (
     <button
       className="rounded-full bg-secondary p-2 shadow-md transition-colors duration-300 hover:bg-accent-color hover:text-white"
-      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      onClick={() => {setTheme(theme === 'light' ? 'dark' : 'light');}}
       aria-label="Toggle dark mode"
     >
       {theme === 'light' ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
