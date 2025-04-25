@@ -45,7 +45,7 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
   return (
     <div className="relative w-full h-10 bg-accent-color text-white py-2 overflow-hidden">
       <div
-        className="relative whitespace-nowrap"
+        className="relative whitespace-nowrap text-primary-foreground"
         style={{
           animation: `marquee calc(var(--marquee-duration) * 1s) linear infinite`,
           '--marquee-duration': announcements.length * 5,
@@ -72,16 +72,7 @@ const DateTimeDisplay = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  const formattedDateTime = dateTime.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-  });
-
-  return <div className="text-sm text-muted-foreground">{formattedDateTime}</div>;
+  return <div className="text-sm text-muted-foreground">{dateTime.toLocaleString()}</div>;
 };
 
 const ThemeToggle = () => {
