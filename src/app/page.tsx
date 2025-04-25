@@ -5,6 +5,7 @@ import {CollegeNotice, getBulletinAnnouncements, getCollegeNotices} from '@/serv
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Switch} from '@/components/ui/switch';
 import {useTheme} from 'next-themes';
+import DateTimeDisplay from '@/components/DateTimeDisplay';
 
 const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}) => (
   <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col">
@@ -48,34 +49,6 @@ const MovingBulletin = ({announcements}: {announcements: string[]}) => {
           </span>
         ))}
       </div>
-    </div>
-  );
-};
-
-const DateTimeDisplay = () => {
-  const [dateTime, setDateTime] = useState(new Date());
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setDateTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const formattedTime = dateTime.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-
-  const formattedDate = dateTime.toLocaleDateString();
-
-  return (
-    <div className="rounded-md bg-secondary p-2 shadow-md transition-colors duration-300">
-      <p className="text-sm text-secondary-foreground">
-        {formattedTime}, {formattedDate}
-      </p>
     </div>
   );
 };
