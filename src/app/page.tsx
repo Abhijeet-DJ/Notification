@@ -32,27 +32,14 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 );
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setCurrentIndex(prevIndex => (prevIndex + 1) % announcements.length);
-    }, 5000);
-
-    return () => clearInterval(intervalId);
-  }, [announcements.length]);
-
   return (
     <div className="relative w-full h-10 bg-accent-color py-2 overflow-hidden">
-      <div
-        className="relative whitespace-nowrap transition-transform duration-300"
-        style={{
-          animation: `marquee calc(var(--marquee-duration) * 1s) linear infinite`,
-          '--marquee-duration': announcements.length * 5,
-        }}
-      >
+      <div className="w-full whitespace-nowrap animate-marquee">
         {announcements.map((announcement, index) => (
-          <span key={index} className="mx-4 inline-block text-primary-foreground dark:text-background">
+          <span
+            key={index}
+            className="mx-4 inline-block text-primary-foreground dark:text-background"
+          >
             {announcement}
           </span>
         ))}
@@ -72,7 +59,11 @@ const DateTimeDisplay = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  return <div className="text-sm text-muted-foreground">{dateTime.toLocaleString()}</div>;
+  return (
+    <div className="rounded-md bg-secondary p-2 shadow-md transition-colors duration-300">
+      <p className="text-sm text-secondary-foreground">{dateTime.toLocaleString()}</p>
+    </div>
+  );
 };
 
 const ThemeToggle = () => {
@@ -124,7 +115,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-clean-background py-6">
+    <div className="min-h-screen bg-clean-background py-6 transition-colors duration-300">
       <header className="text-center mb-8">
         <h1 className="text-3xl font-bold text-accent-color">College Notifier</h1>
         <div className="flex justify-center items-center space-x-4">
