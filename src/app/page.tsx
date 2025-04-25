@@ -49,7 +49,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
   const hasNotices = notices.length > 0;
 
   return (
-    <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col">
+    <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col h-full">
       <CardHeader className="p-4">
         <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
       </CardHeader>
@@ -65,7 +65,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
                       <p className="text-sm">{notice.content}</p>
                     </div>
                   </div>
-                </li>
+                 </li>
               ))}
             </ul>
           ) : (
@@ -91,19 +91,19 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
           <p className="text-muted-foreground">No {title.toLowerCase()} notices available.</p>
         )}
       </CardContent>
-      {isTextNotices && (
-        <div className="p-4 flex justify-center">
-          <button
-            onClick={handleNextPage}
-            className="bg-accent-color text-white px-4 py-2 rounded hover:bg-accent-color-dark"
-          >
-            Next
-          </button>
-        </div>
-      )}
-    </Card>
-  );
-};
+       {isTextNotices && (
+         <div className="p-4 flex justify-center">
+           <button
+             onClick={handleNextPage}
+             className="bg-accent-color text-white px-4 py-2 rounded hover:bg-accent-color-dark"
+           >
+             Next
+           </button>
+         </div>
+       )}
+     </Card>
+   );
+ };
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
   const {theme} = useTheme();
@@ -177,8 +177,8 @@ export default function Home() {
   const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
   return (
-    <div className="min-h-screen bg-clean-background py-6 transition-colors duration-300">
-      <header className="text-center mb-8">
+    <div className="min-h-screen bg-clean-background py-6 transition-colors duration-300 flex flex-col">
+      <header className="text-center mb-4">
         <h1 className="text-3xl font-bold text-accent-color">College Notifier</h1>
         <div className="flex justify-center items-center space-x-4">
           <DateTimeDisplay />
@@ -187,7 +187,7 @@ export default function Home() {
           </ClientOnly>
         </div>
       </header>
-      <main className="container mx-auto px-4 grid grid-cols-2 grid-rows-2 gap-4">
+      <main className="container mx-auto px-4 grid grid-cols-2 grid-rows-2 gap-4 flex-grow">
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
         <NoticeBlock title="Image Notices" notices={imageNotices} />
