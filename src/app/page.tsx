@@ -32,13 +32,21 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 );
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    }
+  }, []);
+
   return (
     <div className="relative w-full h-10 bg-accent-color py-2 overflow-hidden">
       <div className="w-full whitespace-nowrap animate-marquee">
         {announcements.map((announcement, index) => (
           <span
             key={index}
-            className="mx-4 inline-block text-white dark:text-black transition-colors duration-300"
+            className={`mx-4 inline-block transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-black'}`}
           >
             {announcement}
           </span>
@@ -59,15 +67,31 @@ const DateTimeDisplay = () => {
     return () => clearInterval(intervalId);
   }, []);
 
+  const formattedTime = dateTime.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const formattedDate = dateTime.toLocaleDateString();
+
   return (
     <div className="rounded-md bg-secondary p-2 shadow-md transition-colors duration-300">
-      <p className="text-sm text-secondary-foreground">{dateTime.toLocaleTimeString()} , {dateTime.toLocaleDateString()}</p>
+      <p className="text-sm text-secondary-foreground">
+        {formattedTime}, {formattedDate}
+      </p>
     </div>
   );
 };
 
 const ThemeToggle = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    }
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -125,7 +149,7 @@ export default function Home() {
         </div>
       </header>
       <main className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
           <NoticeBlock title="Text Notices" notices={textNotices} />
           <NoticeBlock title="PDF Notices" notices={pdfNotices} />
           <NoticeBlock title="Image Notices" notices={imageNotices} />
