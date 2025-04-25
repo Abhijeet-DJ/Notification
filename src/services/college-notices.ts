@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * Represents a college notice with various content types.
  */
@@ -9,7 +11,7 @@ export interface CollegeNotice {
   /**
    * The date and time the notice was published.
    */
-  dateTime: string;
+  date: string;
   /**
    * The type of the notice content (e.g., 'text', 'pdf', 'image', 'video').
    */
@@ -18,6 +20,7 @@ export interface CollegeNotice {
    * The content of the notice. This could be text, a URL to a PDF, image, or video.
    */
   content: string;
+  imageUrl: string;
 }
 
 /**
@@ -35,11 +38,25 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
 
   try {
     const response = await fetch(apiUrl);
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    return data as CollegeNotice[];
+
+    // Map the data to the CollegeNotice interface, setting contentType based on imageUrl
+    const notices: CollegeNotice[] = data.map((item: any) => ({
+      title: item.title,
+      date: item.date,
+      contentType: item.imageUrl
+        ? item.imageUrl.endsWith('.pdf') ? 'pdf'
+        : item.imageUrl.match(/\.(jpeg|jpg|gif|png)$/) != null ? 'image'
+        : item.imageUrl.match(/\.(mp4|mov|avi)$/) != null ? 'video' : 'text'
+        : 'text',
+      content: item.content,
+      imageUrl: item.imageUrl,
+    }));
+    return notices;
   } catch (error) {
     console.error('Failed to fetch college notices:', error);
     return [];
@@ -62,4 +79,3 @@ export async function getBulletinAnnouncements(): Promise<string[]> {
     'Scholarship Applications Available'
   ];
 }
-

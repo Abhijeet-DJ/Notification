@@ -127,26 +127,19 @@ export default function Home() {
       <header className="text-center mb-8">
         <h1 className="text-3xl font-bold text-accent-color">College Notifier</h1>
         <div className="flex justify-center items-center space-x-4">
-          <p className="text-muted-foreground">Stay updated with the latest announcements</p>
-          <ClientOnly>
-            <DateTimeDisplay />
-          </ClientOnly>
+          <DateTimeDisplay />
           <ClientOnly>
             <ThemeToggle />
           </ClientOnly>
         </div>
       </header>
-      <main className="container mx-auto px-4">
-        <div className="grid grid-cols-2 grid-rows-2 gap-4">
-          <NoticeBlock title="Text Notices" notices={textNotices} />
-          <NoticeBlock title="PDF Notices" notices={pdfNotices} />
-          <NoticeBlock title="Image Notices" notices={imageNotices} />
-          <NoticeBlock title="Video Notices" notices={videoNotices} />
-        </div>
+      <main className="container mx-auto px-4 grid grid-cols-2 gap-4">
+        <NoticeBlock title="Text Notices" notices={textNotices} />
+        <NoticeBlock title="PDF Notices" notices={pdfNotices} />
+        <NoticeBlock title="Image Notices" notices={imageNotices} />
+        <NoticeBlock title="Video Notices" notices={videoNotices} />
       </main>
-      <footer className="mt-8">
-        <MovingBulletin announcements={bulletinAnnouncements} />
-      </footer>
+      <MovingBulletin announcements={bulletinAnnouncements} />
     </div>
   );
 }
