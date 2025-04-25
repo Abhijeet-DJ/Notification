@@ -18,7 +18,20 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (!isTextNotices && notices.length > 0) {
+    if (isTextNotices && notices.length > 0) {
+      intervalId = setInterval(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTo({
+            top: containerRef.current.scrollHeight,
+            behavior: 'smooth',
+          });
+
+          setTimeout(() => {
+            containerRef.current!.scrollTo({top: 0, behavior: 'smooth'});
+          }, 500);
+        }
+      }, 7000);
+    } else if (!isTextNotices && notices.length > 0) {
       intervalId = setInterval(() => {
         if (containerRef.current) {
           containerRef.current.scrollTo({
@@ -37,10 +50,10 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
   }, [notices, isTextNotices]);
 
   const startIndex = currentPage * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentNotices = isTextNotices ? notices.slice(startIndex, endIndex) : notices.slice(0, 1);
-
-  const totalPages = isTextNotices ? Math.ceil(notices.length / itemsPerPage) : 1;
+   const endIndex = startIndex + itemsPerPage;
+   const currentNotices = isTextNotices ? notices.slice(0, itemsPerPage) : notices.slice(0, 1);
+ 
+   const totalPages = isTextNotices ? Math.ceil(notices.length / itemsPerPage) : 1;
 
   const handleNextPage = () => {
     setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
@@ -53,7 +66,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
       <CardHeader className="p-4">
         <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
       </CardHeader>
-      <CardContent className={`p-4 flex-grow ${isTextNotices ? 'overflow-y-auto' : 'overflow-hidden'}`} ref={containerRef}>
+      <CardContent className={`p-4 flex-grow ${isTextNotices ? 'overflow-hidden' : 'overflow-hidden'}`} ref={containerRef}>
         {hasNotices ? (
           isTextNotices ? (
             <ul>
@@ -62,7 +75,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium">{notice.title}</p>
-                      <p className="text-sm">{notice.content}</p>
+                      <p className="text-sm">{notice.imageUrl ? notice.imageUrl : notice.content}</p>
                     </div>
                   </div>
                  </li>
@@ -91,19 +104,9 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
           <p className="text-muted-foreground">No {title.toLowerCase()} notices available.</p>
         )}
       </CardContent>
-       {isTextNotices && (
-         <div className="p-4 flex justify-center">
-           <button
-             onClick={handleNextPage}
-             className="bg-accent-color text-white px-4 py-2 rounded hover:bg-accent-color-dark"
-           >
-             Next
-           </button>
-         </div>
-       )}
-     </Card>
-   );
- };
+        </Card>
+    );
+  };
 
 const MovingBulletin = ({announcements}: {announcements: string[]}) => {
   const {theme} = useTheme();
@@ -178,7 +181,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300">
-      <header className="text-center mb-4">
+      <header className="text-center py-4">
         <h1 className="text-3xl font-bold text-accent-color">College Notifier</h1>
         <div className="flex justify-center items-center space-x-4">
           <DateTimeDisplay />
@@ -197,3 +200,4 @@ export default function Home() {
     </div>
   );
 }
+
