@@ -17,8 +17,9 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
+    const animationDuration = isTextNotices ? 15000 : 7000;
 
-    if (isTextNotices && notices.length > 0) {
+    if (notices && notices.length > 0) {
       intervalId = setInterval(() => {
         if (containerRef.current) {
           containerRef.current.scrollTo({
@@ -28,38 +29,25 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
 
           setTimeout(() => {
             containerRef.current!.scrollTo({top: 0, behavior: 'smooth'});
-          }, 500);
+          }, animationDuration / 3);
         }
-      }, 7000);
-    } else if (!isTextNotices && notices.length > 0) {
-      intervalId = setInterval(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTo({
-            top: containerRef.current.scrollHeight,
-            behavior: 'smooth',
-          });
-
-          setTimeout(() => {
-            containerRef.current!.scrollTo({top: 0, behavior: 'smooth'});
-          }, 500);
-        }
-      }, 7000);
+      }, animationDuration);
     }
 
     return () => clearInterval(intervalId);
   }, [notices, isTextNotices]);
 
   const startIndex = currentPage * itemsPerPage;
-   const endIndex = startIndex + itemsPerPage;
-   const currentNotices = isTextNotices ? notices.slice(0, itemsPerPage) : notices.slice(0, 1);
- 
-   const totalPages = isTextNotices ? Math.ceil(notices.length / itemsPerPage) : 1;
+  const endIndex = startIndex + itemsPerPage;
+  const currentNotices = isTextNotices ? notices.slice(startIndex, endIndex) : notices.slice(0, 1);
+
+  const totalPages = isTextNotices ? Math.ceil(notices.length / itemsPerPage) : 1;
 
   const handleNextPage = () => {
     setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
   };
 
-  const hasNotices = notices.length > 0;
+  const hasNotices = notices && notices.length > 0;
 
   return (
     <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col h-full">
@@ -75,7 +63,7 @@ const NoticeBlock = ({title, notices}: {title: string; notices: CollegeNotice[]}
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium">{notice.title}</p>
-                      <p className="text-sm">{notice.imageUrl ? notice.imageUrl : notice.content}</p>
+                      <p className="text-sm">{notice.content}</p>
                     </div>
                   </div>
                  </li>
@@ -200,4 +188,3 @@ export default function Home() {
     </div>
   );
 }
-
