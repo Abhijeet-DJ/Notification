@@ -83,7 +83,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       <CardHeader className="p-4 flex-shrink-0">
         <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
       </CardHeader>
-      <CardContent className={`p-4 flex-grow ${isTextNotices ? 'overflow-hidden' : 'overflow-hidden'}`} ref={containerRef}>
+      <CardContent className={`flex-grow overflow-hidden ${isTextNotices ? 'p-4' : 'p-1 md:p-2'}`} ref={containerRef}> {/* Reduced padding for non-text */}
          {hasNotices ? (
            isTextNotices ? (
              <ul>
@@ -105,27 +105,41 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            ) : (
              // Display logic for PDF, Image, Video (shows one at a time)
              currentNotices.length > 0 && (
-               <div className="transition-all duration-500">
-                 <div className="flex flex-col space-y-2 h-full justify-center items-center"> {/* Use flex-col */}
-                   <p className="font-medium">{currentNotices[0].title}</p>
+               <div className="transition-all duration-500 h-full"> {/* Ensure container takes full height */}
+                 <div className="flex flex-col space-y-2 h-full justify-center items-center text-center"> {/* Use flex-col, center content */}
+                   <p className="font-medium px-2">{currentNotices[0].title}</p> {/* Added horizontal padding */}
                    <p className="text-sm text-muted-foreground">
                       {new Date(currentNotices[0].date).toISOString().split('T')[0]}
                    </p>
                    {currentNotices[0].contentType === 'pdf' ? (
-                     <a href={currentNotices[0].imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                     <a href={currentNotices[0].imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex-grow flex items-center justify-center">
                        View PDF
                      </a>
                    ) : currentNotices[0].contentType === 'image' ? (
-                     <img src={currentNotices[0].imageUrl} alt={currentNotices[0].title} className="max-w-full max-h-[80%] h-auto object-contain rounded-md" />
+                     // Adjusted image container and image classes
+                     <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
+                       <img
+                         src={currentNotices[0].imageUrl}
+                         alt={currentNotices[0].title}
+                         className="max-w-full max-h-full object-contain rounded-md" // Ensure image fits without cropping
+                       />
+                      </div>
                    ) : currentNotices[0].contentType === 'video' ? (
-                     <video src={currentNotices[0].imageUrl} controls className="max-w-full max-h-[80%] h-auto rounded-md"></video>
+                     // Adjusted video container and video classes
+                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
+                       <video
+                         src={currentNotices[0].imageUrl}
+                         controls
+                         className="max-w-full max-h-full rounded-md" // Ensure video fits
+                       />
+                      </div>
                    ) : null}
                  </div>
                </div>
              )
            )
          ) : (
-           <p className="text-muted-foreground">No {title.toLowerCase()} available.</p>
+           <p className="text-muted-foreground p-4">No {title.toLowerCase()} available.</p> /* Added padding for 'no notices' */
          )}
        </CardContent>
         </Card>
@@ -189,14 +203,17 @@ export default function Home() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Use the combined fetch function
-        const noticesData = await getCollegeNotices();
+        // Use the combined fetch function if needed, or directly use getCollegeNotices
+        const noticesData = await getCollegeNotices(); // Fetch from service
+        // If using the temporary store from addNotice action for demo:
+        // const noticesData = await getNoticesFromStore();
         const announcements = await getBulletinAnnouncements();
 
         setNotices(noticesData);
         setBulletinAnnouncements(announcements);
       } catch (error) {
         console.error('Error loading data:', error);
+        // Consider setting an error state here to display to the user
       }
     };
 
