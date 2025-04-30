@@ -1,7 +1,8 @@
 'use server';
 
 import { z } from 'zod';
-import { getCollegeNotices } from '@/services/college-notices'; // Import to potentially update local state or call backend
+import { revalidatePath } from 'next/cache';
+import { MongoClient } from 'mongodb';
 
 // Define the expected schema for the form data coming from the client
 const formDataSchema = z.object({
@@ -13,8 +14,28 @@ const formDataSchema = z.object({
   fileName: z.string().optional(), // Original file name
 });
 
-// In-memory store for demonstration purposes. Replace with database interaction.
-let noticesStore: any[] = []; // Ideally fetch initial state if needed
+// ** MongoDB Setup **
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.MONGODB_DB;
+
+async function connectToDatabase() {
+  if (!uri) {
+    throw new Error('MONGODB_URI is not defined in .env');
+  }
+  if (!dbName) {
+    throw new Error('MONGODB_DB is not defined in .env');
+  }
+
+  const client = new MongoClient(uri);
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB");
+    return client.db(dbName);
+  } catch (error) {
+    console.error("Failed to connect to MongoDB", error);
+    throw error;
+  }
+}
 
 export async function addNotice(formData: FormData): Promise<{ success: boolean; error?: string }> {
   try {
@@ -31,32 +52,36 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
 
     // Construct the new notice object
     const newNotice = {
-      _id: `temp_${Date.now()}_${Math.random().toString(16).slice(2)}`, // Temporary unique ID
       title,
       content: noticeType === 'text' ? content : '', // Only store content for text notices
       imageUrl: noticeType !== 'text' ? (imageUrl || '') : '', // Store URL for non-text notices
       priority,
       createdBy: 'admin_interface', // Placeholder user
       date: new Date().toISOString(),
-      __v: 0, // Version key if needed
-      // Add derived contentType based on logic from getCollegeNotices
       contentType: noticeType
     };
 
     console.log('Adding new notice:', newNotice);
 
-    // ** Backend Integration Point **
-    // Instead of an in-memory store, you would typically:
-    // 1. Call your backend API endpoint to save the notice.
-    //    e.g., await fetch('YOUR_API_ENDPOINT/notices', { method: 'POST', body: JSON.stringify(newNotice), headers: {'Content-Type': 'application/json'} });
-    // 2. Or, if using a database directly (like Prisma, Drizzle, etc.), perform an insert operation.
-    //    e.g., await db.insert(noticesTable).values(newNotice);
+    // ** MongoDB Integration **
+    try {
+      const db = await connectToDatabase();
+      const collection = db.collection('notices'); // Replace 'notices' with your collection name
+      const result = await collection.insertOne(newNotice);
 
-    // For demonstration, add to the in-memory store
-    noticesStore.push(newNotice);
+      if (!result.acknowledged) {
+        console.error('Failed to insert notice into MongoDB');
+        return { success: false, error: 'Failed to save notice to the database.' };
+      }
 
-    // Optional: Revalidate the path if using Next.js caching and you want the main page to update immediately
-    // revalidatePath('/');
+      console.log('Notice added to MongoDB with id:', result.insertedId);
+
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return { success: false, error: 'An unexpected error occurred while accessing the database.' };
+    }
+
+    revalidatePath('/'); // Clear the cache for the home page
 
     return { success: true };
 
@@ -64,19 +89,4 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     console.error('Error in addNotice server action:', error);
     return { success: false, error: 'An unexpected error occurred while adding the notice.' };
   }
-}
-
-// Function to potentially override getCollegeNotices for demo purposes
-// This allows the form to "update" the list shown on the main page
-// !! THIS IS NOT A PRODUCTION APPROACH - IT ONLY WORKS FOR A SINGLE SERVER INSTANCE !!
-export async function getNoticesFromStore() {
-  // In a real app, always fetch from the source of truth (API/DB)
-  const apiNotices = await getCollegeNotices(); // Get notices from the original source
-  // Combine API notices with temporarily stored notices (remove duplicates if necessary)
-  const combinedNotices = [...apiNotices, ...noticesStore];
-  // Simple deduplication based on _id or a combination of fields if needed
-   const uniqueNotices = Array.from(new Map(combinedNotices.map(item => [item._id || `${item.title}-${item.date}`, item])).values());
-   // Sort by date or priority if required
-   uniqueNotices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return uniqueNotices;
 }

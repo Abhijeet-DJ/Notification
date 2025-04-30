@@ -17,33 +17,46 @@ export interface CollegeNotice {
   contentType: 'text' | 'pdf' | 'image' | 'video';
 }
 
+import { MongoClient } from 'mongodb';
+
+// ** MongoDB Setup **
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.MONGODB_DB;
+
+async function connectToDatabase() {
+  if (!uri) {
+    throw new Error('MONGODB_URI is not defined in .env');
+  }
+  if (!dbName) {
+    throw new Error('MONGODB_DB is not defined in .env');
+  }
+
+  const client = new MongoClient(uri);
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB");
+    return client.db(dbName);
+  } catch (error) {
+    console.error("Failed to connect to MongoDB", error);
+    throw error;
+  }
+}
+
 /**
- * Asynchronously retrieves college notices from the configured API endpoint.
+ * Asynchronously retrieves college notices from the MongoDB database.
  *
  * @returns A promise that resolves to an array of CollegeNotice objects.
  */
 export async function getCollegeNotices(): Promise<CollegeNotice[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_NOTICES_API_URL;
-
-  if (!apiUrl) {
-    console.error('Error: NEXT_PUBLIC_NOTICES_API_URL is not defined in .env');
-    // Return default dummy data if API URL is missing
-    return getDefaultNotices();
-    // Or return an empty array: return [];
-  }
-
   try {
-    const response = await fetch(apiUrl, { cache: 'no-store' }); // Disable caching for fresh data
+    const db = await connectToDatabase();
+    const collection = db.collection('notices'); // Replace 'notices' with your collection name
 
-    if (!response.ok) {
-      console.error(`HTTP error fetching notices! status: ${response.status}`);
-      return getDefaultNotices(); // Return dummy data on fetch error
-      // Or throw an error: throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
+    // Fetch all notices from the database and convert them to an array
+    const notices = await collection.find({}).toArray();
 
     // Validate and map the data to the CollegeNotice interface
-    const notices: CollegeNotice[] = data.map((item: any) => {
+    const validatedNotices: CollegeNotice[] = notices.map((item: any) => {
       let contentType: 'text' | 'pdf' | 'image' | 'video' = 'text'; // Default to text
 
       if (item.imageUrl) {
@@ -64,7 +77,7 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
 
 
       return {
-        _id: item._id,
+        _id: item._id.toString(), // Convert ObjectId to string
         title: item.title,
         content: item.content || '', // Ensure content is at least an empty string
         imageUrl: item.imageUrl || '', // Ensure imageUrl is at least an empty string
@@ -78,77 +91,18 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
 
     // Sort notices primarily by priority (ascending, lower number is higher priority)
     // and secondarily by date (descending, newest first)
-    notices.sort((a, b) => {
+    validatedNotices.sort((a, b) => {
       if (a.priority !== b.priority) {
         return a.priority - b.priority;
       }
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-
-    return notices;
+    return validatedNotices;
   } catch (error) {
     console.error('Failed to fetch or process college notices:', error);
-    // Return default dummy data on any processing error
-    return getDefaultNotices();
-    // Or return empty: return [];
+    return []; // Return empty array
   }
-}
-
-
-// Function to provide default dummy notices if API fails or is unavailable
-function getDefaultNotices(): CollegeNotice[] {
-  console.warn("Using default dummy notices.");
-  const now = new Date();
-  return [
-    {
-      _id: 'dummy_text_1',
-      title: 'Default Text Notice 1',
-      content: 'This is some default content for a text notice. API might be unavailable.',
-      imageUrl: '',
-      priority: 3,
-      createdBy: 'system',
-      date: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(), // 1 hour ago
-      contentType: 'text',
-    },
-    {
-       _id: 'dummy_text_2',
-       title: 'Default Text Notice 2 (Higher Priority)',
-       content: 'This notice has a higher priority.',
-       imageUrl: '',
-       priority: 1,
-       createdBy: 'system',
-       date: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-       contentType: 'text',
-     },
-    {
-      _id: 'dummy_image_1',
-      title: 'Default Image Notice',
-      content: '',
-      imageUrl: 'https://picsum.photos/seed/default1/400/300',
-      priority: 2,
-      createdBy: 'system',
-      date: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
-      contentType: 'image',
-    },
-     {
-       _id: 'dummy_pdf_1',
-       title: 'Default PDF Notice',
-       content: '',
-       // Note: This is a placeholder. You'd need a real PDF URL for it to work.
-       imageUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-       priority: 3,
-       createdBy: 'system',
-       date: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
-       contentType: 'pdf',
-     },
-     // Add more dummy notices if needed
-  ].sort((a, b) => { // Ensure default notices are also sorted
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
 }
 
 /**
