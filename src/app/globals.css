@@ -1,5 +1,3 @@
-
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,98 +8,70 @@ body {
 
 @layer base {
   :root {
-    --background: 220 13% 96%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
+    /* Light Theme Variables */
+    --background: 0 0% 96%; /* Light grey #F5F5F5 */
+    --foreground: 0 0% 3.9%; /* Default dark text */
+    --card: 0 0% 100%; /* White */
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 180 100% 25%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
+    --primary: 180 100% 25%; /* Teal #008080 */
+    --primary-foreground: 0 0% 98%; /* Light text for primary background */
+    --secondary: 0 0% 98%; /* Slightly off-white for secondary elements */
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --accent: 180 100% 25%; /* Teal #008080 for accents */
+    --accent-foreground: 0 0% 98%; /* Light text for accent background */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --ring: 180 100% 25%; /* Teal for focus rings */
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --bulletin-text: black;
+
+    /* Custom Colors based on proposal */
+    --clean-background: 0 0% 96%; /* Light grey #F5F5F5 */
+    --content-block: 0 0% 100%; /* White #FFFFFF */
+    --accent-color-hsl: 180 100% 25%; /* Teal #008080 */
+
+    /* Bulletin text color for light theme */
+    --bulletin-text-light: 0 0% 3.9%; /* Black */
+    --bulletin-text-dark: 0 0% 98%; /* White */
   }
+
   .dark {
+    /* Dark Theme Variables */
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+    --card: 240 6% 10%; /* Darker card background */
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+    --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 180 100% 25%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
+    --primary: 180 80% 35%; /* Slightly brighter Teal for dark mode */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 5% 15%; /* Darker secondary */
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
+    --muted: 240 5% 15%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
+    --accent: 180 80% 35%; /* Teal for accents in dark mode */
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --bulletin-text: white;
-  }
+    --border: 240 5% 15%;
+    --input: 240 5% 15%;
+    --ring: 180 80% 35%; /* Teal for focus rings */
 
-  :root {
-    --teal-50: #e0f2f1;
-    --teal-100: #b2dfdb;
-    --teal-200: #80cbc4;
-    --teal-300: #4db6ac;
-    --teal-400: #26a69a;
-    --teal-500: #009688;
-    --teal-600: #008080;
-    --teal-700: #00796b;
-    --teal-800: #00695c;
-    --teal-900: #004d40;
+    /* Custom Colors for dark theme */
+    --clean-background: 240 10% 3.9%;
+    --content-block: 240 6% 10%;
+    /* --accent-color-hsl remains the base for derivation */
 
-    --white: #FFFFFF;
-    --light-grey: #F5F5F5;
-
-    --clean-background: var(--light-grey);
-    --content-block: var(--white);
-    --accent-color: var(--teal-600);
+    /* Bulletin text color already defined in :root */
   }
 }
 
+/* Ensure body uses the theme variables */
 @layer base {
   * {
     @apply border-border;
@@ -111,19 +81,44 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Apply custom theme colors */
+  .bg-clean-background {
+    background-color: hsl(var(--clean-background));
+  }
+  .bg-content-block {
+    background-color: hsl(var(--content-block));
+  }
+  .text-accent-color {
+    color: hsl(var(--accent));
+  }
+   .bg-accent-color {
+     background-color: hsl(var(--accent));
+   }
+   .text-bulletin {
+      /* Use CSS variables for dynamic bulletin text color */
+     color: hsl(var(--bulletin-text-light));
+   }
+   .dark .text-bulletin {
+      color: hsl(var(--bulletin-text-dark));
+   }
 }
+
 
 @layer utilities {
   .animate-marquee {
-    @apply animate-[marquee_25s_linear_infinite];
+    /* Ensure animation uses full width for smooth loop */
+    animation: marquee 25s linear infinite;
+    display: inline-block; /* Important for whitespace-nowrap */
+    padding-left: 100%; /* Start the content off-screen to the right */
   }
 
   @keyframes marquee {
-    0% { transform: translateX(100%); }
-    100% { transform: translateX(-100%); }
+    0% {
+      transform: translateX(0%);
+     }
+     100% {
+       transform: translateX(-100%);
+     }
   }
 }
-
-
-
-
