@@ -2,10 +2,9 @@
 
 import type { Metadata } from 'next';
 import { useEffect, useState, useRef } from 'react';
-import { CollegeNotice, getCollegeNotices } from '@/services/college-notices';
-// Use the function that combines API and temporarily stored notices
-import { getNoticesFromStore } from '@/app/actions/addNotice';
+import { CollegeNotice, getCollegeNotices, getBulletinAnnouncements } from '@/services/college-notices';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { useTheme } from 'next-themes';
 import DateTimeDisplay from '@/components/DateTimeDisplay';
 import ClientOnly from '@/components/ClientOnly';
@@ -81,7 +80,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
   return (
     <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col h-full">
-      <CardHeader className="p-4">
+      <CardHeader className="p-4 flex-shrink-0">
         <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
       </CardHeader>
       <CardContent className={`p-4 flex-grow ${isTextNotices ? 'overflow-hidden' : 'overflow-hidden'}`} ref={containerRef}>
@@ -107,7 +106,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
              // Display logic for PDF, Image, Video (shows one at a time)
              currentNotices.length > 0 && (
                <div className="transition-all duration-500">
-                 <div className="flex flex-col space-y-2"> {/* Use flex-col */}
+                 <div className="flex flex-col space-y-2 h-full justify-center items-center"> {/* Use flex-col */}
                    <p className="font-medium">{currentNotices[0].title}</p>
                    <p className="text-sm text-muted-foreground">
                       {new Date(currentNotices[0].date).toISOString().split('T')[0]}
@@ -117,9 +116,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                        View PDF
                      </a>
                    ) : currentNotices[0].contentType === 'image' ? (
-                     <img src={currentNotices[0].imageUrl} alt={currentNotices[0].title} className="max-w-full h-auto object-contain rounded-md" />
+                     <img src={currentNotices[0].imageUrl} alt={currentNotices[0].title} className="max-w-full max-h-[80%] h-auto object-contain rounded-md" />
                    ) : currentNotices[0].contentType === 'video' ? (
-                     <video src={currentNotices[0].imageUrl} controls className="max-w-full h-auto rounded-md"></video>
+                     <video src={currentNotices[0].imageUrl} controls className="max-w-full max-h-[80%] h-auto rounded-md"></video>
                    ) : null}
                  </div>
                </div>
@@ -191,16 +190,8 @@ export default function Home() {
     const loadData = async () => {
       try {
         // Use the combined fetch function
-        const noticesData = await getNoticesFromStore();
-        const announcements = await getBulletinAnnouncements(); // Assuming this is correct
-
-        // Sort notices by priority (lower number first) and then by date (newest first)
-        noticesData.sort((a, b) => {
-          if (a.priority !== b.priority) {
-            return a.priority - b.priority; // Lower priority number comes first
-          }
-          return new Date(b.date).getTime() - new Date(a.date).getTime(); // Newest date comes first
-        });
+        const noticesData = await getCollegeNotices();
+        const announcements = await getBulletinAnnouncements();
 
         setNotices(noticesData);
         setBulletinAnnouncements(announcements);
@@ -219,14 +210,14 @@ export default function Home() {
 
 
   // Filter notices based on the updated logic
-  const textNotices = notices.filter(notice => notice.contentType === 'text' || (!notice.imageUrl && notice.content));
-  const pdfNotices = notices.filter(notice => notice.contentType === 'pdf');
-  const imageNotices = notices.filter(notice => notice.contentType === 'image');
-  const videoNotices = notices.filter(notice => notice.contentType === 'video');
+   const textNotices = notices.filter(notice => notice.contentType === 'text');
+   const pdfNotices = notices.filter(notice => notice.contentType === 'pdf');
+   const imageNotices = notices.filter(notice => notice.contentType === 'image');
+   const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
   return (
-    <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300">
-      <header className="text-center py-4 px-4 flex justify-between items-center">
+    <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300 overflow-hidden">
+      <header className="text-center py-4 px-4 flex justify-between items-center flex-shrink-0">
          {/* Add Notice Button */}
          <Button asChild variant="outline">
            <Link href="/add-notice">
@@ -242,7 +233,7 @@ export default function Home() {
           </ClientOnly>
         </div>
       </header>
-      <main className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden">
+      <main className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden mb-4"> {/* Added mb-4 for margin */}
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
         <NoticeBlock title="Image Notices" notices={imageNotices} />
@@ -251,15 +242,4 @@ export default function Home() {
       <MovingBulletin announcements={bulletinAnnouncements} />
     </div>
   );
-}
-
-// Dummy function, replace with actual API call if needed
-async function getBulletinAnnouncements(): Promise<string[]> {
-  return [
-    'Welcome to the College Notifier App!',
-    'Check back often for important updates.',
-    'Have a great semester!',
-    'Admissions Open for 2025',
-    'Scholarship Applications Available',
-  ];
 }
