@@ -14,7 +14,7 @@ import Link from 'next/link';
 
 
 const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice[] }) => {
-  const isTextNotices = title === 'Text Notices';
+  const isTextNotices = title === "Text Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null); // Ref to hold interval ID
@@ -31,7 +31,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
     const itemsPerPage = isTextNotices ? 5 : 1;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const animationDuration = isTextNotices ? 15000 : 10000; // Increased duration
+    // Increased animation duration for slower scrolling/transitions
+    const animationDuration = isTextNotices ? 15000 : 10000; // e.g., 15 seconds for text, 10 seconds for files
 
     intervalRef.current = setInterval(() => {
       setCurrentPage((prevPage) => {
@@ -47,11 +48,12 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            // After a delay, scroll back to top smoothly to show next batch
            setTimeout(() => {
              if (containerRef.current) {
+               // Reset scroll smoothly to top *before* the next interval tick
                containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
              }
-           }, animationDuration / 2); // Adjust timing as needed
+           }, animationDuration / 2); // Adjust timing relative to animationDuration
         }
-        // For non-text notices, just update the page state
+        // For non-text notices, just update the page state for the next item
         return nextPage;
       });
     }, animationDuration);
@@ -71,11 +73,16 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
   const itemsPerPage = isTextNotices ? 5 : 1;
   const startIndex = currentPage * itemsPerPage;
-  const currentNotices = isTextNotices
-    ? notices.slice(startIndex, startIndex + itemsPerPage)
-    : notices.slice(startIndex, startIndex + 1); // Always show one for non-text
+  // Slice the notices based on current page and items per page
+   const currentNotices = notices.slice(startIndex, startIndex + itemsPerPage);
+
 
   const hasNotices = notices?.length > 0;
+
+   // Debug log to see what currentNotices contains for PDF block
+   if (title === "PDF Notices") {
+     console.log("PDF Notices - currentNotices:", currentNotices);
+   }
 
 
   return (
@@ -83,7 +90,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       <CardHeader className="p-4 flex-shrink-0">
         <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
       </CardHeader>
-      <CardContent className={`flex-grow overflow-hidden ${isTextNotices ? 'p-4' : 'p-1 md:p-2'}`} ref={containerRef}> {/* Reduced padding for non-text */}
+      {/* Removed fixed height and added min-h-0 for flex-grow */}
+      <CardContent className={`flex-grow overflow-hidden ${isTextNotices ? 'p-4' : 'p-1 md:p-2'} min-h-0`} ref={containerRef}>
          {hasNotices ? (
            isTextNotices ? (
              <ul>
@@ -114,11 +122,13 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                    {currentNotices[0].contentType === 'pdf' ? (
                       // Embed PDF using iframe
                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
+                         {/* Ensure the URL is correctly passed and accessible */}
                          <iframe
                            src={currentNotices[0].imageUrl}
                            title={currentNotices[0].title}
                            className="w-full h-full border-0 rounded-md"
-                           // sandbox="allow-scripts allow-same-origin" // Consider security implications
+                           onError={(e) => console.error("Error loading PDF:", currentNotices[0].imageUrl, e)} // Add error handling
+                           // sandbox="allow-scripts allow-same-origin" // Use cautiously if needed
                          />
                       </div>
                    ) : currentNotices[0].contentType === 'image' ? (
@@ -128,6 +138,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          src={currentNotices[0].imageUrl}
                          alt={currentNotices[0].title}
                          className="max-w-full max-h-full object-contain rounded-md" // Ensure image fits without cropping
+                         onError={(e) => console.error("Error loading Image:", currentNotices[0].imageUrl, e)} // Add error handling
                        />
                       </div>
                    ) : currentNotices[0].contentType === 'video' ? (
@@ -137,6 +148,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          src={currentNotices[0].imageUrl}
                          controls
                          className="max-w-full max-h-full rounded-md" // Ensure video fits
+                         onError={(e) => console.error("Error loading Video:", currentNotices[0].imageUrl, e)} // Add error handling
                        />
                       </div>
                    ) : null}
@@ -154,18 +166,18 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
 const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
   const { theme } = useTheme();
-  // Correctly determine text color based on theme
-  const textColor = theme === 'dark' ? 'text-[var(--bulletin-text-dark)]' : 'text-[var(--bulletin-text-light)]';
+  // Use CSS variables defined in globals.css for dynamic theme colors
+   const textColorClass = theme === 'dark' ? 'text-[hsl(var(--bulletin-text-dark))]' : 'text-[hsl(var(--bulletin-text-light))]';
 
 
   return (
-    <div className="relative w-full h-10 bg-accent py-2 overflow-hidden">
+    <div className="relative w-full h-10 bg-accent py-2 overflow-hidden flex-shrink-0"> {/* Ensure it doesn't grow */}
       {/* Apply text color dynamically */}
-      <div className={`w-full whitespace-nowrap animate-marquee ${textColor}`} style={{ animationPlayState: 'running' }}>
+      <div className={`w-full whitespace-nowrap animate-marquee ${textColorClass}`} style={{ animationPlayState: 'running' }}>
         {announcements.map((announcement, index) => (
           <span
             key={index}
-            className="mx-4 inline-block transition-colors duration-300" // Removed direct text color class here
+            className="mx-4 inline-block transition-colors duration-300" // Text color handled by parent div
           >
             {announcement}
           </span>
@@ -209,38 +221,44 @@ export default function Home() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Use the combined fetch function if needed, or directly use getCollegeNotices
-        // const noticesData = await getCollegeNotices(); // Fetch from service
-        // If using the temporary store from addNotice action for demo:
-         const noticesData = await getNoticesFromStore(); // Use function from action
-        const announcements = await getBulletinAnnouncements();
-
+        const noticesData = await getCollegeNotices();
+        console.log("Fetched notices in Home component:", noticesData); // Log fetched data
         setNotices(noticesData);
+
+        const announcements = await getBulletinAnnouncements();
         setBulletinAnnouncements(announcements);
       } catch (error) {
         console.error('Error loading data:', error);
-        // Consider setting an error state here to display to the user
       }
     };
 
     loadData();
 
-     // Optional: Set up polling to refresh data periodically
-     const intervalId = setInterval(loadData, 60000); // Refresh every 60 seconds
+     // Optional: Refresh data periodically (e.g., every minute)
+     const intervalId = setInterval(loadData, 60000);
 
      return () => clearInterval(intervalId); // Clean up interval on unmount
   }, []);
 
 
-  // Filter notices based on the updated logic
+  // Filter notices based on the contentType
    const textNotices = notices.filter(notice => notice.contentType === 'text');
    const pdfNotices = notices.filter(notice => notice.contentType === 'pdf');
    const imageNotices = notices.filter(notice => notice.contentType === 'image');
    const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
+   // Log filtered notices for debugging
+   console.log("Filtered PDF Notices:", pdfNotices);
+   console.log("Filtered Image Notices:", imageNotices);
+   console.log("Filtered Video Notices:", videoNotices);
+   console.log("Filtered Text Notices:", textNotices);
+
+
   return (
+    // Use flexbox for layout, h-screen for full height, overflow-hidden to prevent body scroll
     <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300 overflow-hidden">
-      <header className="text-center py-4 px-4 flex justify-between items-center flex-shrink-0">
+      {/* Header: flex-shrink-0 prevents it from shrinking */}
+      <header className="text-center py-4 px-4 flex justify-between items-center flex-shrink-0 border-b">
          {/* Add Notice Button */}
          <Button asChild variant="outline">
            <Link href="/add-notice">
@@ -258,25 +276,18 @@ export default function Home() {
           </ClientOnly>
         </div>
       </header>
-      <main className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden mb-4"> {/* Added mb-4 for margin */}
+
+       {/* Main Content Area: flex-grow allows it to take remaining space */}
+      <main className="container mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden">
+        {/* Each NoticeBlock should fill its grid cell */}
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
         <NoticeBlock title="Image Notices" notices={imageNotices} />
         <NoticeBlock title="Video Notices" notices={videoNotices} />
       </main>
+
+      {/* Footer (Bulletin): flex-shrink-0 prevents it from shrinking */}
       <MovingBulletin announcements={bulletinAnnouncements} />
     </div>
   );
 }
-
-// Temporary function from addNotice action to simulate updates - NOT FOR PRODUCTION
-async function getNoticesFromStore() {
-   // In a real app, always fetch from the source of truth (API/DB)
-   const apiNotices = await getCollegeNotices(); // Get notices from the original source
-   // Combine API notices with temporarily stored notices (if any - addNotice needs to populate it)
-   // For demo, assuming addNotice action might add to some temporary client-side or server-side store
-   // This part depends heavily on how addNotice is actually storing data temporarily
-   // If addNotice doesn't expose a way to get its temporary store, this won't work
-   // Example: Fetch from API and maybe merge with localStorage if used (not recommended for server actions)
-   return apiNotices; // Simplest case: always return fresh data from the service
- }
