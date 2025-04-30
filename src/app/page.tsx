@@ -112,9 +112,15 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                       {new Date(currentNotices[0].date).toISOString().split('T')[0]}
                    </p>
                    {currentNotices[0].contentType === 'pdf' ? (
-                     <a href={currentNotices[0].imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex-grow flex items-center justify-center">
-                       View PDF
-                     </a>
+                      // Embed PDF using iframe
+                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
+                         <iframe
+                           src={currentNotices[0].imageUrl}
+                           title={currentNotices[0].title}
+                           className="w-full h-full border-0 rounded-md"
+                           // sandbox="allow-scripts allow-same-origin" // Consider security implications
+                         />
+                      </div>
                    ) : currentNotices[0].contentType === 'image' ? (
                      // Adjusted image container and image classes
                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
@@ -204,9 +210,9 @@ export default function Home() {
     const loadData = async () => {
       try {
         // Use the combined fetch function if needed, or directly use getCollegeNotices
-        const noticesData = await getCollegeNotices(); // Fetch from service
+        // const noticesData = await getCollegeNotices(); // Fetch from service
         // If using the temporary store from addNotice action for demo:
-        // const noticesData = await getNoticesFromStore();
+         const noticesData = await getNoticesFromStore(); // Use function from action
         const announcements = await getBulletinAnnouncements();
 
         setNotices(noticesData);
@@ -244,7 +250,9 @@ export default function Home() {
 
         <h1 className="text-3xl font-bold text-primary">College Notifier</h1>
         <div className="flex items-center space-x-4">
-          <DateTimeDisplay />
+          <ClientOnly>
+             <DateTimeDisplay />
+           </ClientOnly>
           <ClientOnly>
             <ThemeToggle />
           </ClientOnly>
@@ -260,3 +268,15 @@ export default function Home() {
     </div>
   );
 }
+
+// Temporary function from addNotice action to simulate updates - NOT FOR PRODUCTION
+async function getNoticesFromStore() {
+   // In a real app, always fetch from the source of truth (API/DB)
+   const apiNotices = await getCollegeNotices(); // Get notices from the original source
+   // Combine API notices with temporarily stored notices (if any - addNotice needs to populate it)
+   // For demo, assuming addNotice action might add to some temporary client-side or server-side store
+   // This part depends heavily on how addNotice is actually storing data temporarily
+   // If addNotice doesn't expose a way to get its temporary store, this won't work
+   // Example: Fetch from API and maybe merge with localStorage if used (not recommended for server actions)
+   return apiNotices; // Simplest case: always return fresh data from the service
+ }
