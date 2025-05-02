@@ -210,7 +210,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                             return (
                                 <div key={`pair-${pageIndex}`} className="flex w-full h-full flex-shrink-0">
                                     {pair.map((notice, noticeIndexInPair) => (
-                                        <div key={notice._id} className="w-1/2 h-full px-1 py-1"> {/* Half width, padding */}
+                                        <div key={notice._id} className="w-1/2 h-full px-1"> {/* Half width, horizontal padding only */}
                                             <iframe
                                                 src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                                                 title={notice.title}
@@ -221,7 +221,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                                         </div>
                                     ))}
                                     {/* Add placeholder if only one PDF in the last pair */}
-                                    {pair.length === 1 && <div className="w-1/2 h-full px-1 py-1"></div>}
+                                    {pair.length === 1 && <div className="w-1/2 h-full px-1"></div>}
                                 </div>
                             );
                         })}
@@ -232,7 +232,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                              return (
                                  <div key={`dup-pair-${pageIndex}`} className="flex w-full h-full flex-shrink-0" aria-hidden="true">
                                      {pair.map((notice, noticeIndexInPair) => (
-                                         <div key={`dup-${notice._id}`} className="w-1/2 h-full px-1 py-1">
+                                         <div key={`dup-${notice._id}`} className="w-1/2 h-full px-1"> {/* Half width, horizontal padding only */}
                                              <iframe
                                                  src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                                                  title=""
@@ -241,7 +241,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                                              />
                                          </div>
                                      ))}
-                                     {pair.length === 1 && <div className="w-1/2 h-full px-1 py-1"></div>}
+                                     {pair.length === 1 && <div className="w-1/2 h-full px-1"></div>}
                                  </div>
                               );
                         })}
