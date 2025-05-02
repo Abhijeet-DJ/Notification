@@ -125,9 +125,8 @@ body {
 
    /* Animation for image belt */
   .animate-marquee-images {
-     /* Adjust duration based on the number/width of images. 10s per image * N images? */
-     /* 10s per image seems too slow. Let's try 50s total for a typical set */
-     animation: marquee-images 50s linear infinite;
+     /* Adjust duration based on the number/width of images. */
+     animation: marquee-images 10s linear infinite; /* Changed duration to 10s */
      display: flex; /* Use flexbox for horizontal layout */
      white-space: nowrap; /* Prevent wrapping, though flex handles this */
      will-change: transform; /* Optimize animation performance */
