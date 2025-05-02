@@ -1,4 +1,3 @@
-
 'use server';
 
 import type { ObjectId } from 'mongodb'; // Import ObjectId type if needed for clarity
@@ -71,6 +70,7 @@ async function closeDatabaseConnection(db: Db) {
  * Sorts notices by priority (ascending) and then by date (descending).
  * @returns A promise that resolves to an array of CollegeNotice objects.
  */
+// Use no-store cache to always get fresh data
 export async function getCollegeNotices(): Promise<CollegeNotice[]> {
   console.log('[getCollegeNotices] Attempting to fetch notices...');
   let db: Db | null = null;
@@ -156,8 +156,9 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
          title: typeof item.title === 'string' ? item.title : 'Untitled Notice',
          // Assign content only if it's a text notice, ensure it's a string
          content: determinedContentType === 'text' && typeof item.content === 'string' ? item.content : '',
-         // Assign imageUrl only if it's NOT text, ensure it's a string and valid URL structure (basic check)
-         imageUrl: determinedContentType !== 'text' && typeof item.imageUrl === 'string' && item.imageUrl.startsWith('/') ? item.imageUrl : '',
+         // Assign imageUrl only if it's NOT text, ensure it's a string and valid relative path (starts with /)
+         // Ensure URL is correctly formed for public access
+         imageUrl: determinedContentType !== 'text' && typeof item.imageUrl === 'string' && item.imageUrl.startsWith('/uploads/') ? item.imageUrl : '',
          // Validate priority, default to 3 if invalid
          priority: typeof item.priority === 'number' && item.priority >= 1 && item.priority <= 5 ? item.priority : 3,
          createdBy: typeof item.createdBy === 'string' ? item.createdBy : 'Unknown',
@@ -170,7 +171,7 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
 
        // --- Post-Assignment Warnings ---
        if (noticeObj.contentType !== 'text' && !noticeObj.imageUrl) {
-           console.warn(`[getCollegeNotices] Notice _id: ${noticeObj._id} is type '${noticeObj.contentType}' but lacks a valid imageUrl.`);
+           console.warn(`[getCollegeNotices] Notice _id: ${noticeObj._id} is type '${noticeObj.contentType}' but lacks a valid imageUrl. Original DB value: '${item.imageUrl}'`);
        }
        if (noticeObj.contentType === 'text' && !noticeObj.content.trim()) {
            // This might be acceptable if title is enough, but good to note.

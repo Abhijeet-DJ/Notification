@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Metadata } from 'next';
@@ -16,6 +15,7 @@ import Link from 'next/link';
 
 const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice[] }) => {
   const isTextNotices = title === "Text Notices";
+  const isImageOrVideoNotices = title === "Image Notices" || title === "Video Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null); // Ref to hold interval ID
@@ -40,10 +40,13 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       return; // Don't start if no notices
     }
 
-    const itemsPerPage = isTextNotices ? 5 : 1;
+    // Determine items per page based on notice type
+    const itemsPerPage = isTextNotices ? 5 : 1; // Text: 5, Image/Video/PDF: 1
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+
     // Increased animation duration for slower scrolling/transitions
-    const animationDuration = 10000; // 10 seconds
+    // Set different duration for text vs others if needed
+    const animationDuration = 10000; // 10 seconds for all types for now
 
      console.log(`[DEBUG][NoticeBlock][${title}] Starting animation: TotalItems=${totalItems}, ItemsPerPage=${itemsPerPage}, TotalPages=${totalPages}, Duration=${animationDuration}ms`);
 
@@ -69,7 +72,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
              }
            }, animationDuration / 2); // Adjust timing relative to animationDuration
         }
-        // For non-text notices, just update the page state for the next item
+        // For Image/Video/PDF notices, just update the page state for the next item
         return nextPage;
       });
     }, animationDuration);
@@ -86,7 +89,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
         clearInterval(intervalRef.current);
       }
     };
-  }, [notices, isTextNotices]); // Rerun effect if notices or type change
+     // Rerun effect if notices or type change (isTextNotices covers type dependency)
+  }, [notices, isTextNotices]);
 
 
   const itemsPerPage = isTextNotices ? 5 : 1;
@@ -137,7 +141,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            ) : (
              // Display logic for PDF, Image, Video (shows one at a time)
              currentNotices.length > 0 && (
-               <div className="transition-all duration-500 h-full">
+               <div className="transition-opacity duration-500 ease-in-out h-full" key={currentNotices[0]._id}> {/* Add key for transition */}
                  <div className="flex flex-col space-y-2 h-full justify-center items-center text-center">
                    <p className="font-medium px-2">{currentNotices[0].title}</p>
                    <p className="text-sm text-muted-foreground">
@@ -178,6 +182,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                        <video
                          src={currentNotices[0].imageUrl}
                          controls
+                         autoPlay // Add autoPlay if desired for video cycling
+                         muted // Often necessary for autoPlay to work in browsers
+                         loop // Loop the video if it's the only one
                          className="max-w-full max-h-full rounded-md" // Ensure video fits
                          onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)} // Add error handling
                        />
@@ -273,6 +280,7 @@ export default function Home() {
     const loadData = async () => {
        console.log("[DEBUG][Home] Fetching data...");
       try {
+        // Use no-store cache to always get fresh data
         const noticesData = await getCollegeNotices();
         console.log("[DEBUG][Home] Fetched notices raw data:", noticesData); // Log fetched data BEFORE setting state
         setNotices(noticesData); // Update state
