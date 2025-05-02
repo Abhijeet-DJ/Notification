@@ -33,10 +33,11 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/web
 const ACCEPTED_PDF_TYPES = ["application/pdf"];
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
 
-// Updated schema for file uploads
+// Updated schema for file uploads matching the backend action
 const noticeSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
+  // Make content optional in the frontend schema as well
   content: z.string().optional(),
   // Use 'file' field for file input. Expect a FileList from the input.
   file: z.instanceof(typeof window !== 'undefined' ? FileList : Object)
@@ -53,13 +54,16 @@ const noticeSchema = z.object({
 }).refine(data => {
     // Require content if type is text
     if (data.noticeType === 'text') {
-        return !!data.content?.trim(); // Content must exist and not be empty spaces
+        // Content must exist and not be empty spaces
+        return !!data.content?.trim();
     }
     // Require file if type is not text
     if (data.noticeType !== 'text') {
-        return !!data.file?.[0]; // File must exist in the FileList
+        // File must exist in the FileList
+        return !!data.file?.[0];
     }
-    return true; // Should not happen if logic above is correct
+    // Should not happen if logic above is correct, but return true for text notices without file
+    return true;
 }, {
     message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
     path: ["content", "file"],
@@ -95,7 +99,7 @@ export default function AddNoticeForm() {
     defaultValues: {
       title: '',
       noticeType: 'text',
-      content: '',
+      content: '', // Default content to empty string
       priority: 3,
       file: undefined,
     },
@@ -113,23 +117,33 @@ export default function AddNoticeForm() {
     formData.append('noticeType', values.noticeType);
     formData.append('priority', String(values.priority)); // Send priority as string
 
-    if (values.noticeType === 'text') {
-      formData.append('content', values.content || '');
-    } else if (values.file?.[0]) {
+    // Send content only if it's a text notice and has a value
+    if (values.noticeType === 'text' && values.content) {
+      formData.append('content', values.content);
+    } else if (values.noticeType !== 'text' && values.file?.[0]) {
         // Append the file itself from the FileList
         formData.append('file', values.file[0]);
         formData.append('fileName', values.file[0].name); // Send original filename
-    } else {
+    } else if (values.noticeType === 'text' && !values.content?.trim()) {
         // This case should be caught by Zod validation, but added as a fallback
         toast({
             title: "Missing Content",
+            description: `Please enter content for the text notice.`,
+            variant: "destructive",
+        });
+        setIsLoading(false);
+        return; // Stop submission
+    } else if (values.noticeType !== 'text' && !values.file?.[0]) {
+       // This case should be caught by Zod validation, but added as a fallback
+        toast({
+            title: "Missing File",
             description: `Please upload a file for the ${values.noticeType} notice.`,
             variant: "destructive",
         });
         setIsLoading(false);
         return; // Stop submission
     }
-
+    // If it's not a text notice, 'content' field is implicitly not sent or handled by backend as empty
 
     try {
       console.log('Sending FormData to server action:', Object.fromEntries(formData.entries()));
@@ -226,6 +240,8 @@ export default function AddNoticeForm() {
                     placeholder="Enter notice content"
                     className="min-h-[100px]" // Slightly larger text area
                     {...field}
+                    // Ensure value is handled correctly, default to empty string
+                    value={field.value ?? ''}
                   />
                 </FormControl>
                  <FormDescription>

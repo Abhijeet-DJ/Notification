@@ -46,16 +46,17 @@ const formDataSchema = z.object({
   priority: z.string().transform(Number).refine(val => val >= 1 && val <= 5, {
       message: "Priority must be between 1 and 5",
   }).default("3"),
-  content: z.string().optional(),
+  // Allow content to be explicitly undefined or an empty string
+  content: z.string().optional().nullable().transform(val => val ?? ''), // Transform null/undefined to empty string
   // Expect 'file' object from FormData which should be a single File instance
   file: z.instanceof(File, { message: "File upload is required." })
          .refine(file => file.size <= MAX_FILE_SIZE, `Max file size is 10MB.`)
          .optional(),
   fileName: z.string().optional(), // Original file name from form
 }).refine(data => {
-    // Require content if type is text
+    // Require content (non-empty string) if type is text
     if (data.noticeType === 'text') {
-        return !!data.content?.trim();
+        return data.content.trim().length > 0; // Check if the string is not just whitespace
     }
     // Require file if type is not text
     if (data.noticeType !== 'text') {
@@ -64,7 +65,7 @@ const formDataSchema = z.object({
     return true;
 }, {
     message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
-    path: ["content", "file"],
+    path: ["content", "file"], // Point error to relevant fields
 }).refine(data => {
     // Validate file type based on noticeType only if file exists
     if (data.file) {
@@ -127,12 +128,14 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
         title: formData.get('title') as string,
         noticeType: formData.get('noticeType') as 'text' | 'pdf' | 'image' | 'video',
         priority: formData.get('priority') as string,
-        content: formData.get('content') as string | undefined,
+        // Explicitly get content, which might be null if not sent from form
+        content: formData.get('content') as string | null,
         file: formData.get('file') as File | null, // Get the file object
         fileName: formData.get('fileName') as string | undefined,
     };
 
     // Prepare data for validation, ensuring file is only included if it's a valid File object
+    // Pass content directly (Zod schema will handle transformation)
     const dataToValidate = {
       ...rawData,
       file: rawData.file && rawData.file instanceof File && rawData.file.size > 0 ? rawData.file : undefined,
@@ -170,7 +173,8 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     const newNotice = {
       title,
       // Store content only if it's explicitly a text notice
-      content: noticeType === 'text' ? (content || '') : '',
+      // content is already transformed to '' if null/undefined by Zod
+      content: noticeType === 'text' ? content : '',
       // Store the URL obtained from upload/placeholder if it's not a text notice
       imageUrl: noticeType !== 'text' ? uploadedFileUrl : '',
       priority, // Store the numeric priority
@@ -206,7 +210,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     let errorMessage = 'An unexpected error occurred while adding the notice.';
      if (error instanceof z.ZodError) {
        errorMessage = `Validation Error: ${error.errors.map(e => e.message).join(', ')}`;
-     } else if (error.message.includes('MONGODB_URI')) {
+     } else if (error.message?.includes('MONGODB_URI')) {
         errorMessage = 'Database connection failed. Please check configuration.';
     } else if (error.name === 'MongoNetworkError') {
         errorMessage = 'Could not connect to the database.';
