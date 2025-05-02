@@ -70,8 +70,11 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
                                         .sort({ priority: 1, date: -1 }) // Sort by priority asc, date desc
                                         .toArray();
     console.log("Fetched notices from DB:", noticesFromDb.length);
+    console.log("[DEBUG] Raw data from DB:", noticesFromDb); // Added Debug Log
 
     const validatedNotices: CollegeNotice[] = noticesFromDb.map((item: any) => {
+      console.log("[DEBUG] Processing raw DB item:", item); // Added Debug Log
+
       // Validate date
       let isoDate: string;
       try {
@@ -133,7 +136,7 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
           console.warn(`Notice "${item.title}" is type 'text' but lacks content.`);
       }
 
-      return {
+      const noticeObj = {
         _id: item._id ? item._id.toString() : `generated_${Math.random()}`,
         title: item.title || 'Untitled Notice',
         // Store content only if it's explicitly a text notice (based on FINAL determined type)
@@ -147,6 +150,9 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
         __v: item.__v,
         contentType: determinedContentType, // Use the final determined/validated content type
       };
+      console.log("[DEBUG] Mapped notice object:", noticeObj); // Added Debug Log
+      return noticeObj;
+
     }).filter((notice): notice is CollegeNotice => notice !== null); // Filter out any potential nulls if mapping failed
 
     // No need to sort again here, database sort is efficient

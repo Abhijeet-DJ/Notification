@@ -162,6 +162,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     if (noticeType !== 'text' && validatedFile) {
         try {
             uploadedFileUrl = await uploadFileAndGetUrl(validatedFile); // Use the placeholder
+            console.log(`[DEBUG] Generated URL for ${validatedFile.name}: ${uploadedFileUrl}`); // Added Debug Log
             console.log(`File ${validatedFile.name} uploaded, URL: ${uploadedFileUrl}`);
         } catch (uploadError: any) {
              console.error("File upload failed:", uploadError);
@@ -190,6 +191,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     };
 
     console.log('Attempting to add new notice to DB:', newNotice);
+    console.log('[DEBUG] Saving notice with imageUrl:', newNotice.imageUrl); // Added Debug Log
 
     // ** MongoDB Integration **
     db = await connectToDatabase();

@@ -19,6 +19,14 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null); // Ref to hold interval ID
 
+   // --- Debugging Log ---
+   console.log(`[DEBUG] NoticeBlock Rendering: Title="${title}", Notices Count=${notices.length}`);
+   if (title === "Image Notices" && notices.length > 0) {
+     console.log("[DEBUG] Image Notices Data:", notices);
+   }
+   // --- End Debugging Log ---
+
+
   // Function to start the animation interval
   const startAnimation = () => {
     // Clear any existing interval before starting a new one
@@ -75,6 +83,13 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const startIndex = currentPage * itemsPerPage;
   // Slice the notices based on current page and items per page
    const currentNotices = notices.slice(startIndex, startIndex + itemsPerPage);
+
+   // --- Debugging Log ---
+   console.log(`[DEBUG] Current Notices for "${title}":`, currentNotices);
+   if (title === "Image Notices" && currentNotices.length > 0) {
+     console.log("[DEBUG] Current Image Notice URL:", currentNotices[0]?.imageUrl);
+   }
+   // --- End Debugging Log ---
 
 
   const hasNotices = notices?.length > 0;
