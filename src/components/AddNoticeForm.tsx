@@ -1,6 +1,6 @@
 'use client';
 
-import type * as React from 'react';
+import * as React from 'react'; // Import React
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,10 +41,10 @@ const noticeSchema = z.object({
   // Use 'file' field for file input. Expect a FileList from the input.
   file: z.instanceof(typeof window !== 'undefined' ? FileList : Object)
     .refine(
-      (files) => files?.[0]?.size <= MAX_FILE_SIZE,
+      (files) => !files || files.length === 0 || files?.[0]?.size <= MAX_FILE_SIZE, // Allow empty FileList for text notices
       `Max file size is 10MB.`
     )
-    .optional(), // Optional for text notices
+    .optional(), // Optional overall, but required conditionally
   priority: z.coerce // Use coerce to handle string from input type="number"
     .number({ invalid_type_error: "Priority must be a number" })
     .min(1, "Priority must be at least 1")
