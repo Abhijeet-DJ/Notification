@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,9 +36,9 @@ body {
     --content-block: 0 0% 100%; /* White #FFFFFF */
     --accent-color-hsl: 180 100% 25%; /* Teal #008080 */
 
-    /* Bulletin text color for light theme */
-    --bulletin-text-light: 0 0% 3.9%; /* Black */
-    --bulletin-text-dark: 0 0% 98%; /* White */
+    /* Bulletin text color HSL variables */
+    --bulletin-text-light-hsl: 0 0% 3.9%; /* Black */
+    --bulletin-text-dark-hsl: 0 0% 98%; /* White */
   }
 
   .dark {
@@ -66,8 +67,6 @@ body {
     --clean-background: 240 10% 3.9%;
     --content-block: 240 6% 10%;
     /* --accent-color-hsl remains the base for derivation */
-
-    /* Bulletin text color already defined in :root */
   }
 }
 
@@ -95,32 +94,23 @@ body {
    .bg-accent-color {
      background-color: hsl(var(--accent));
    }
-   .text-bulletin {
-      /* Use CSS variables for dynamic bulletin text color */
-     color: hsl(var(--bulletin-text-light));
+   /* Define specific bulletin text color classes */
+   .text-bulletin-light {
+     color: hsl(var(--bulletin-text-light-hsl));
    }
-   .dark .text-bulletin {
-      color: hsl(var(--bulletin-text-dark));
+   .text-bulletin-dark {
+      color: hsl(var(--bulletin-text-dark-hsl));
    }
-
-   /* Attempt to hide iframe scrollbars globally (less specific, might affect others) */
-   /* iframe {
-      scrollbar-width: none; /* Firefox */
-   /* } */
-   /* iframe::-webkit-scrollbar { */
-      /* display: none; /* Safari and Chrome */
-   /* } */
 }
 
 
 @layer utilities {
   /* Increased specificity for marquee animation */
   .animate-marquee {
-    /* Adjust duration based on content width if needed, 25s is a starting point */
+    /* Adjust duration based on content width if needed, 50s is a starting point */
     animation: marquee 50s linear infinite; /* Increased duration for smoother loop */
     display: inline-block; /* Changed from flex to inline-block for transform */
     white-space: nowrap; /* Keep content on one line */
-    /* padding-left: 100%; Removed padding, start transform from 0 */
   }
 
    @keyframes marquee {
@@ -132,6 +122,25 @@ body {
        transform: translateX(-50%);
      }
    }
+
+   /* Animation for image belt */
+  .animate-marquee-images {
+     /* Adjust duration based on the number/width of images. 10s per image * N images? */
+     /* 10s per image seems too slow. Let's try 50s total for a typical set */
+     animation: marquee-images 50s linear infinite;
+     display: flex; /* Use flexbox for horizontal layout */
+     white-space: nowrap; /* Prevent wrapping, though flex handles this */
+     will-change: transform; /* Optimize animation performance */
+   }
+
+    @keyframes marquee-images {
+      0% {
+        transform: translateX(0%); /* Start with the first set of images visible */
+      }
+      100% {
+        /* Move exactly one width of the original set of images */
+        transform: translateX(-50%);
+      }
+    }
 }
 
-    
