@@ -76,7 +76,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
          clearInterval(textScrollIntervalRef.current);
       }
 
-      const scrollDuration = 20000; // 20 seconds for text scroll cycle
+      const scrollDuration = 10000; // 10 seconds for text scroll cycle
       console.log(`[DEBUG][NoticeBlock][${title}] Starting text scroll animation: Duration=${scrollDuration}ms`);
 
       textScrollIntervalRef.current = setInterval(() => {
@@ -286,9 +286,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          src={currentNotices[0].imageUrl}
                          controls
                          autoPlay
-                         muted // Keep muted for autoplay compliance
-                         // loop={totalItems === 1} // Remove loop, handle via onEnded
-                         className="max-w-full max-h-full rounded-md"
+                         // muted // Removed muted attribute
+                         className="max-w-full max-h-full rounded-md" // Spans container while maintaining aspect ratio
                          onEnded={handleVideoEnded} // Call handler when video finishes
                          onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)}
                        />
@@ -456,4 +455,5 @@ export default function Home() {
   );
 }
 
+    
     
