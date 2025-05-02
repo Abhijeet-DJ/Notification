@@ -102,6 +102,14 @@ body {
    .dark .text-bulletin {
       color: hsl(var(--bulletin-text-dark));
    }
+
+   /* Attempt to hide iframe scrollbars globally (less specific, might affect others) */
+   /* iframe {
+      scrollbar-width: none; /* Firefox */
+   /* } */
+   /* iframe::-webkit-scrollbar { */
+      /* display: none; /* Safari and Chrome */
+   /* } */
 }
 
 

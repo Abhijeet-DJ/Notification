@@ -17,6 +17,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const isTextNotices = title === "Text Notices";
   const isPdfNotices = title === "PDF Notices";
   const isImageNotices = title === "Image Notices";
+  const isVideoNotices = title === "Video Notices"; // Added for clarity
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const textScrollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for text scrolling animation
@@ -124,22 +125,24 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
        pdfScrollIntervalRef.current = setInterval(() => {
            if (pdfIframeRef.current && pdfIframeRef.current.contentWindow) {
                try {
-                   const iframeDoc = pdfIframeRef.current.contentWindow.document.body;
-                   const iframeScrollHeight = iframeDoc.scrollHeight;
-                   const iframeClientHeight = pdfIframeRef.current.contentWindow.innerHeight; // Use innerHeight of contentWindow
-                   let currentScrollTop = pdfIframeRef.current.contentWindow.scrollY; // Use scrollY of contentWindow
+                   // Access iframe content window and body - potential cross-origin issues handled in catch
+                   const iframeWindow = pdfIframeRef.current.contentWindow;
+                   const iframeDocBody = iframeWindow.document.body;
+                   const iframeScrollHeight = iframeDocBody.scrollHeight;
+                   const iframeClientHeight = iframeWindow.innerHeight; // Use innerHeight of contentWindow
+                   let currentScrollTop = iframeWindow.scrollY; // Use scrollY of contentWindow
 
                    if (iframeScrollHeight > iframeClientHeight) { // Check if scrolling is needed
                        if (currentScrollTop + iframeClientHeight >= iframeScrollHeight - 5) { // Check if near the bottom (added tolerance)
                            // Reached bottom, scroll back to top smoothly
                            console.log(`[DEBUG][NoticeBlock][${title}] PDF reached bottom, scrolling to top.`);
-                           pdfIframeRef.current.contentWindow.scrollTo({ top: 0, behavior: 'smooth' });
+                           iframeWindow.scrollTo({ top: 0, behavior: 'smooth' });
                        } else {
                            // Scroll down by step
-                           pdfIframeRef.current.contentWindow.scrollBy({ top: scrollStep, behavior: 'smooth' });
+                           iframeWindow.scrollBy({ top: scrollStep, behavior: 'smooth' });
                        }
                    } else {
-                       // Content fits, stop interval if running (optional)
+                       // Content fits, stop interval if running (optional, might restart if content loads slowly)
                        // console.log(`[DEBUG][NoticeBlock][${title}] PDF content fits, no scroll needed.`);
                        // if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
                    }
@@ -174,7 +177,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
     };
      // Dependencies ensure effect runs when notices or type-specific flags change
-  }, [notices, isTextNotices, isPdfNotices, isImageNotices, totalPages]); // Added totalPages dependency
+     // Include currentPage in dependencies for PDF scrolling to restart if the PDF source changes
+  }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages, currentPage]);
 
 
   const startIndex = currentPage * itemsPerPage;
@@ -232,16 +236,21 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                    </p>
                    {currentNotices[0].contentType === 'pdf' ? (
                       // Embed PDF using iframe
+                      // Container already has overflow-hidden, which should hide the iframe's scrollbar if possible
                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
                          {/* Ensure the URL is correctly passed and accessible */}
                          <iframe
                            ref={pdfIframeRef} // Assign ref to the iframe
-                           src={currentNotices[0].imageUrl}
+                           src={`${currentNotices[0].imageUrl}#toolbar=0&navpanes=0&scrollbar=0`} // Attempt to hide toolbar/scrollbar via URL fragment
                            title={currentNotices[0].title}
                            className="w-full h-full border-0 rounded-md"
                            onError={(e) => console.error(`[DEBUG][NoticeBlock][${title}] Error loading PDF:`, currentNotices[0].imageUrl, e)} // Add error handling
                            // sandbox="allow-scripts allow-same-origin" // Use cautiously if needed - might break scrolling
-                           onLoad={() => console.log(`[DEBUG][NoticeBlock][${title}] PDF Iframe loaded: ${currentNotices[0].imageUrl}`)} // Log when iframe loads
+                           onLoad={() => {
+                               console.log(`[DEBUG][NoticeBlock][${title}] PDF Iframe loaded: ${currentNotices[0].imageUrl}`);
+                               // Optionally restart scroll animation on load if needed, though useEffect should handle it
+                               // startPdfScrollAnimation();
+                           }}
                          />
                       </div>
                    ) : currentNotices[0].contentType === 'image' ? (
@@ -272,7 +281,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          muted // Often necessary for autoPlay to work in browsers
                          loop // Loop the video if it's the only one
                          className="max-w-full max-h-full rounded-md" // Ensure video fits
-                         onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)} // Add error handling
+                         onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)}
                        />
                       </div>
                    ) : null}
