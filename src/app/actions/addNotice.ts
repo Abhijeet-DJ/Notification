@@ -18,8 +18,9 @@ const formDataSchema = z.object({
     .default(3), // Default priority
   // Allow content to be explicitly undefined or an empty string, required for 'text'
   content: z.string().optional().nullable().transform(val => val ?? ''), // Ensure it's always a string
-  // Expect imageUrl for non-text types, optional because it's handled separately after upload
-  imageUrl: z.string().url({ message: "Invalid URL format for image/PDF/video" }).optional().nullable(),
+  // Expect imageUrl (relative path) for non-text types, optional because it's handled separately after upload
+  // Removed .url() validation as it expects a full URL (http/https)
+  imageUrl: z.string().optional().nullable(),
   // Store original file name from the upload step
   originalFileName: z.string().optional().nullable(),
 }).refine(data => {
