@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -165,12 +166,15 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
   return (
     <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col h-full">
-      <CardHeader className="p-4 flex-shrink-0">
-        <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
-      </CardHeader>
-      {/* Adjust CardContent padding: Remove padding for image belt, adjust PDF */}
+      {/* Conditionally render header based on whether it's video notices */}
+      {!isVideoNotices && (
+        <CardHeader className="p-4 flex-shrink-0">
+          <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
+        </CardHeader>
+      )}
+      {/* Adjust CardContent padding: Remove padding for image/video belt, adjust PDF */}
       <CardContent
-          className={`flex-grow overflow-hidden ${isImageNotices ? 'p-0' : isPdfNotices ? 'p-0' : isTextNotices ? 'p-4' : 'p-1 md:p-2'} min-h-0`}
+          className={`flex-grow overflow-hidden ${isImageNotices || isVideoNotices ? 'p-0' : isPdfNotices ? 'p-0' : 'p-4'} min-h-0`}
           ref={containerRef} // Ref still used for text scrolling and video handling
       >
          {hasNotices ? (
@@ -278,21 +282,25 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            ) : isVideoNotices ? (
              // Display logic for Video (shows one at a time)
              currentNotices.length > 0 && (
-               <div className="transition-opacity duration-500 ease-in-out h-full" key={currentNotices[0]._id}>
-                 <div className="flex flex-col h-full justify-start items-center text-center">
-                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
+               // Make the container take full height and width
+               <div className="transition-opacity duration-500 ease-in-out h-full w-full" key={currentNotices[0]._id}>
+                  {/* Ensure the inner div also takes full height and centers content */}
+                  <div className="flex flex-col h-full w-full justify-center items-center text-center">
+                     {/* Video container - ensures video expands but respects aspect ratio */}
+                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
                        <video
                          key={currentNotices[0].imageUrl} // Use URL as key to force remount on change if needed
                          src={currentNotices[0].imageUrl}
                          controls
                          autoPlay
-                         // muted // Removed muted attribute
-                         className="max-w-full max-h-full rounded-md" // Spans container while maintaining aspect ratio
+                         // muted // Keep unmuted as requested
+                         // Make video take full width/height within its container, maintain aspect ratio
+                         className="w-full h-full object-contain rounded-md"
                          onEnded={handleVideoEnded} // Call handler when video finishes
                          onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)}
                        />
                       </div>
-                 </div>
+                  </div>
                </div>
              )
            ) : null // Fallback if type is unknown
@@ -444,6 +452,7 @@ export default function Home() {
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
         <NoticeBlock title="Image Notices" notices={imageNotices} />
+        {/* Pass the video notices to NoticeBlock, the header is handled inside NoticeBlock */}
         <NoticeBlock title="Video Notices" notices={videoNotices} />
       </main>
 
@@ -454,6 +463,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
-    
