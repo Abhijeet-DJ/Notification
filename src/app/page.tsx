@@ -27,19 +27,22 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   // Adjusted itemsPerPage logic: Text: 5, PDF/Image: All (handled by belt), Video: 1
   const itemsPerPage = isTextNotices ? 5 : isVideoNotices ? 1 : totalItems;
   // Calculate totalPages only for paginated types (Text, Video)
+  // For PDFs, totalPages represents pairs
   const totalPages = (isTextNotices || isVideoNotices) && totalItems > 0
     ? Math.ceil(totalItems / itemsPerPage)
-    : 0;
+    : (isPdfNotices && totalItems > 0)
+      ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
+      : 0;
 
 
-  // Function to start the animation interval for changing items/pages (Video/Text Pages)
+  // Function to start the animation interval for changing items/pages (Video/Text Pages/PDF Pairs)
   const startItemChangeAnimation = () => {
     if (itemChangeIntervalRef.current) {
       clearInterval(itemChangeIntervalRef.current);
     }
 
-    // Don't start if it's image/pdf notices or only one page or no notices for other types
-    if (isImageNotices || isPdfNotices || totalPages <= 1) {
+    // Don't start if it's image notices or only one page/pair or no notices for other types
+    if (isImageNotices || totalPages <= 1) {
       return;
     }
 
@@ -47,11 +50,14 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
     let animationDuration: number;
     if (isVideoNotices) {
       animationDuration = 20000; // 20 seconds for videos
-    } else { // Includes Text pagination
+    } else if (isPdfNotices) {
+      animationDuration = 20000; // 20 seconds for PDF pairs
+    }
+    else { // Includes Text pagination
       animationDuration = 10000; // 10 seconds for text pages
     }
 
-    console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation: TotalPages=${totalPages}, Duration=${animationDuration}ms`);
+    console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation: TotalPages/Pairs=${totalPages}, Duration=${animationDuration}ms`);
 
     itemChangeIntervalRef.current = setInterval(() => {
       setCurrentPage((prevPage) => {
@@ -103,7 +109,6 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       }, scrollDuration);
    };
 
-   // --- Removed startPdfScrollAnimation - Belt animation handles movement ---
 
   // Effect to start/restart animations when notices change or type changes
   useEffect(() => {
@@ -113,7 +118,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
     if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
 
     // Start appropriate animations
-    startItemChangeAnimation(); // Handles changing items for video/text pages
+    startItemChangeAnimation(); // Handles changing items for video/text pages/PDF pairs
     startTextScrollAnimation(); // Handles scrolling within the text block
 
     // Cleanup function to clear intervals on component unmount or before effect runs again
@@ -126,11 +131,14 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages, currentPage]);
 
 
-  const startIndex = (isTextNotices || isVideoNotices) ? currentPage * itemsPerPage : 0;
-  // Slice the notices based on current page and items per page for paginated types (Text, Video)
-  // For images/PDFs, use all notices for the belt animation
-   const currentNotices = (isTextNotices || isVideoNotices)
-     ? notices.slice(startIndex, startIndex + itemsPerPage)
+  // Get indices for pagination/pairing
+  const startIndex = (isTextNotices || isVideoNotices) ? currentPage * itemsPerPage
+                   : isPdfNotices ? currentPage * 2 // 2 PDFs per page/pair
+                   : 0;
+  // Slice the notices based on current page and items per page for paginated types (Text, Video, PDF Pairs)
+  // For images, use all notices for the belt animation
+   const currentNotices = (isTextNotices || isVideoNotices || isPdfNotices)
+     ? notices.slice(startIndex, startIndex + (isPdfNotices ? 2 : itemsPerPage)) // Get 2 for PDF, others as before
      : notices;
 
 
@@ -142,9 +150,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       <CardHeader className="p-4 flex-shrink-0">
         <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
       </CardHeader>
-      {/* Adjust CardContent padding: Remove padding for image/pdf belts */}
+      {/* Adjust CardContent padding: Remove padding for image belt, adjust PDF */}
       <CardContent
-          className={`flex-grow overflow-hidden ${isImageNotices || isPdfNotices ? 'p-0' : isTextNotices ? 'p-4' : 'p-1 md:p-2'} min-h-0`}
+          className={`flex-grow overflow-hidden ${isImageNotices ? 'p-0' : isPdfNotices ? 'p-0' : isTextNotices ? 'p-4' : 'p-1 md:p-2'} min-h-0`}
           ref={containerRef} // Ref still used for text scrolling
       >
          {hasNotices ? (
@@ -192,39 +200,57 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                     </div>
                 </div>
            ) : isPdfNotices ? (
-                 // PDF Belt Logic (Vertical)
+                 // PDF Belt Logic (Vertical - 2 side-by-side)
                  <div className="h-full w-full overflow-hidden">
                     <div className="flex flex-col h-full animate-marquee-vertical" style={{ animationPlayState: 'running' }}>
-                         {/* Render all PDF iframes */}
-                         {notices.map((notice, index) => (
-                              <div key={`${notice._id}-${index}`} className="flex-shrink-0 w-full h-full py-2"> {/* Vertical spacing */}
-                                  <iframe
-                                    // Add #toolbar=0&navpanes=0&scrollbar=0 to attempt hiding controls (browser support varies)
-                                    src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                                    title={notice.title}
-                                    className="w-full h-full border-0 rounded-md"
-                                    style={{ scrollbarWidth: 'none' }} // Hide scrollbar for Firefox
-                                    onError={(e) => console.error(`[DEBUG][NoticeBlock][PDF Notices] Error loading PDF:`, notice.imageUrl, e)}
-                                  />
-                                   {/* CSS to hide scrollbar in WebKit browsers */}
-                                   <style>{`
-                                     iframe::-webkit-scrollbar {
-                                       display: none;
-                                     }
-                                   `}</style>
-                              </div>
-                          ))}
-                          {/* Duplicate PDF iframes for seamless looping */}
-                          {notices.map((notice, index) => (
-                              <div key={`dup-${notice._id}-${index}`} className="flex-shrink-0 w-full h-full py-2" aria-hidden="true">
-                                   <iframe
-                                     src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                                     title="" // Empty title for decorative duplicate
-                                     className="w-full h-full border-0 rounded-md"
-                                     style={{ scrollbarWidth: 'none' }}
-                                   />
-                              </div>
-                           ))}
+                        {/* Render PDF pairs */}
+                        {Array.from({ length: totalPages }).map((_, pageIndex) => {
+                            const pairStartIndex = pageIndex * 2;
+                            const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
+                            return (
+                                <div key={`pair-${pageIndex}`} className="flex w-full h-full flex-shrink-0">
+                                    {pair.map((notice, noticeIndexInPair) => (
+                                        <div key={notice._id} className="w-1/2 h-full px-1 py-1"> {/* Half width, padding */}
+                                            <iframe
+                                                src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                                title={notice.title}
+                                                className="w-full h-full border-0 rounded-md"
+                                                style={{ scrollbarWidth: 'none' }} // Hide scrollbar for Firefox
+                                                onError={(e) => console.error(`[DEBUG][NoticeBlock][PDF Notices] Error loading PDF:`, notice.imageUrl, e)}
+                                            />
+                                        </div>
+                                    ))}
+                                    {/* Add placeholder if only one PDF in the last pair */}
+                                    {pair.length === 1 && <div className="w-1/2 h-full px-1 py-1"></div>}
+                                </div>
+                            );
+                        })}
+                        {/* Duplicate PDF pairs for seamless looping */}
+                        {Array.from({ length: totalPages }).map((_, pageIndex) => {
+                             const pairStartIndex = pageIndex * 2;
+                             const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
+                             return (
+                                 <div key={`dup-pair-${pageIndex}`} className="flex w-full h-full flex-shrink-0" aria-hidden="true">
+                                     {pair.map((notice, noticeIndexInPair) => (
+                                         <div key={`dup-${notice._id}`} className="w-1/2 h-full px-1 py-1">
+                                             <iframe
+                                                 src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                                 title=""
+                                                 className="w-full h-full border-0 rounded-md"
+                                                 style={{ scrollbarWidth: 'none' }}
+                                             />
+                                         </div>
+                                     ))}
+                                     {pair.length === 1 && <div className="w-1/2 h-full px-1 py-1"></div>}
+                                 </div>
+                              );
+                        })}
+                         {/* CSS to hide scrollbar in WebKit browsers for iframes */}
+                         <style>{`
+                           iframe::-webkit-scrollbar {
+                             display: none;
+                           }
+                         `}</style>
                     </div>
                  </div>
            ) : isVideoNotices ? (
@@ -261,19 +287,23 @@ const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
   const [textColorClass, setTextColorClass] = useState('');
 
    useEffect(() => {
+     // Ensure this runs only on the client
      setTextColorClass(theme === 'dark' ? 'text-bulletin-dark' : 'text-bulletin-light');
-   }, [theme]);
+   }, [theme]); // Dependency on theme ensures it updates
 
 
   return (
     <div className="relative w-full h-10 bg-accent py-2 overflow-hidden flex-shrink-0">
-      <ClientOnly>
-        <div className={`w-full whitespace-nowrap animate-marquee ${textColorClass}`} style={{ animationPlayState: 'running' }}>
+      <ClientOnly> {/* Wrap dynamic part in ClientOnly */}
+        <div
+          className={`w-full whitespace-nowrap animate-marquee ${textColorClass}`} // Apply dynamic text color class
+          style={{ animationPlayState: 'running' }}
+        >
           {/* Render announcements twice for seamless loop */}
           {[...announcements, ...announcements].map((announcement, index) => (
             <span
               key={index}
-              className="mx-4 inline-block transition-colors duration-300"
+              className="mx-4 inline-block transition-colors duration-300" // Added transition
               aria-hidden={index >= announcements.length} // Hide duplicates from screen readers
             >
               {announcement}
@@ -285,6 +315,7 @@ const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
   );
 };
 
+
 const ThemeToggle = () => {
   const { setTheme, theme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -294,9 +325,12 @@ const ThemeToggle = () => {
   }, []);
 
   if (!mounted) {
+    // Render a placeholder or null during server render / hydration mismatch prevention
+    // Using a placeholder consistent with the button size
     return <div className="h-10 w-10 rounded-full bg-secondary animate-pulse"></div>;
   }
 
+  // Now safe to render based on theme
   return (
     <Button
       variant="outline"
@@ -358,25 +392,32 @@ export default function Home() {
 
 
   return (
-    <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300 overflow-hidden">
-      <header className="text-center py-4 px-4 flex justify-between items-center flex-shrink-0 border-b">
+    <div className="flex flex-col h-screen bg-clean-background transition-colors duration-300 overflow-hidden"> {/* Prevent outer scroll */}
+      {/* Header */}
+      <header className="text-center py-4 px-4 flex justify-between items-center flex-shrink-0 border-b"> {/* flex-shrink-0 prevents header shrinking */}
+         {/* Add Notice Button */}
          <Button asChild variant="outline">
            <Link href="/add-notice">
              <PlusCircle className="mr-2 h-4 w-4" /> Add Notice
            </Link>
          </Button>
 
+        {/* Title */}
         <h1 className="text-3xl font-bold text-primary">College Notifier</h1>
+
+        {/* Right side controls: Date/Time and Theme Toggle */}
         <div className="flex items-center space-x-4">
-          <ClientOnly>
+          <ClientOnly> {/* Wrap DateTimeDisplay */}
              <DateTimeDisplay />
            </ClientOnly>
-          <ClientOnly>
+          <ClientOnly> {/* Wrap ThemeToggle */}
             <ThemeToggle />
           </ClientOnly>
         </div>
       </header>
 
+      {/* Main content grid */}
+      {/* Use flex-grow to make main take remaining space, overflow-hidden to prevent its scroll */}
       <main className="container mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden">
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
@@ -384,6 +425,7 @@ export default function Home() {
         <NoticeBlock title="Video Notices" notices={videoNotices} />
       </main>
 
+      {/* Moving Bulletin - Place outside main, flex-shrink-0 prevents it shrinking */}
        <ClientOnly>
          <MovingBulletin announcements={bulletinAnnouncements} />
        </ClientOnly>
