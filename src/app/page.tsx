@@ -129,36 +129,49 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            if (pdfIframeRef.current && pdfIframeRef.current.contentWindow) {
                try {
                    const iframeWindow = pdfIframeRef.current.contentWindow;
+                   // Access body directly for scroll height
                    const iframeDocBody = iframeWindow.document.body;
                    const iframeScrollHeight = iframeDocBody.scrollHeight;
-                   const iframeClientHeight = iframeWindow.innerHeight;
+                   const iframeClientHeight = iframeWindow.innerHeight; // Use innerHeight of the iframe window
                    let currentScrollTop = iframeWindow.scrollY;
+
+                    // console.log(`[DEBUG][PDF Scroll] scrollH=${iframeScrollHeight}, clientH=${iframeClientHeight}, currentScrollTop=${currentScrollTop}, direction=${direction}`);
 
                    if (iframeScrollHeight > iframeClientHeight) {
                        if (direction === 'down') {
-                           if (currentScrollTop + iframeClientHeight >= iframeScrollHeight - 5) {
+                           // Scroll down until near the bottom (adjust buffer as needed)
+                           if (currentScrollTop + iframeClientHeight >= iframeScrollHeight - 5) { // Check if near the bottom
                                direction = 'up'; // Change direction to scroll up
                                console.log(`[DEBUG][NoticeBlock][${title}] PDF reached bottom, changing direction to UP.`);
                            } else {
                                iframeWindow.scrollBy({ top: scrollStep, behavior: 'smooth' });
                            }
                        } else { // direction === 'up'
-                           if (currentScrollTop <= 5) {
+                           // Scroll up until near the top (adjust buffer as needed)
+                           if (currentScrollTop <= 5) { // Check if near the top
                                direction = 'down'; // Change direction to scroll down
                                console.log(`[DEBUG][NoticeBlock][${title}] PDF reached top, changing direction to DOWN.`);
                            } else {
                                iframeWindow.scrollBy({ top: -scrollStep, behavior: 'smooth' });
                            }
                        }
+                   } else {
+                        console.log(`[DEBUG][NoticeBlock][${title}] PDF content fits in iframe, no scroll needed.`);
+                        // Optionally clear interval if no scroll needed ever
+                        // if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
                    }
 
                    // Check if display duration exceeded, then change the PDF via itemChangeInterval
+                   // Note: The itemChangeInterval will handle changing the page/PDF source.
+                   // This scrolling interval should ideally just manage the scroll within the current PDF.
+                   // Resetting timeElapsed ensures the scroll logic restarts correctly for the next PDF.
                    if (timeElapsed >= pdfDisplayDuration) {
-                       console.log(`[DEBUG][NoticeBlock][${title}] PDF display duration reached. Item change should trigger.`);
-                       // The itemChangeInterval will handle changing the PDF page.
-                       // We can stop this interval or let the useEffect cleanup handle it.
-                       if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
-                       timeElapsed = 0; // Reset time for the next PDF's scroll cycle
+                       console.log(`[DEBUG][NoticeBlock][${title}] PDF display duration reached. Item change should trigger soon.`);
+                       // We let the useEffect cleanup handle clearing this interval when the component re-renders due to currentPage change.
+                       timeElapsed = 0; // Reset time for the next PDF's scroll cycle (or when same PDF reloads)
+                       direction = 'down'; // Reset direction for next cycle
+                       // Scroll to top when duration ends, ready for next cycle or new PDF
+                       iframeWindow.scrollTo({ top: 0, behavior: 'smooth' });
                    }
 
                } catch (error) {
@@ -167,6 +180,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                }
            } else {
                console.warn(`[DEBUG][NoticeBlock][${title}] PDF iframe or contentWindow not ready for scrolling.`);
+               // Optionally clear interval if iframe is not available
+               // if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
            }
        }, scrollInterval);
    };
@@ -183,7 +198,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
     // Start appropriate animations
     startItemChangeAnimation(); // Handles changing items for non-image types if multiple pages exist
     startTextScrollAnimation(); // Handles scrolling within the text block
-    startPdfScrollAnimation(); // Handles scrolling within the PDF iframe
+    // Defer PDF scroll start until iframe is loaded
+    // startPdfScrollAnimation(); // Moved to onLoad of iframe
 
     // Cleanup function to clear intervals on component unmount or before effect runs again
     return () => {
@@ -268,7 +284,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
              // Display logic for PDF, Video (shows one at a time)
              currentNotices.length > 0 && (
                <div className="transition-opacity duration-500 ease-in-out h-full" key={currentNotices[0]._id}> {/* Add key for transition */}
-                 <div className="flex flex-col h-full justify-start items-center text-center">
+                 <div className="flex flex-col h-full justify-start items-center text-center"> {/* Changed justify-center to justify-start */}
                    {currentNotices[0].contentType === 'pdf' ? (
                       // Embed PDF using iframe
                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
