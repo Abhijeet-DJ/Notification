@@ -106,19 +106,24 @@ body {
 
 
 @layer utilities {
+  /* Increased specificity for marquee animation */
   .animate-marquee {
-    /* Ensure animation uses full width for smooth loop */
-    animation: marquee 25s linear infinite;
-    display: inline-block; /* Important for whitespace-nowrap */
-    padding-left: 100%; /* Start the content off-screen to the right */
+    /* Adjust duration based on content width if needed, 25s is a starting point */
+    animation: marquee 50s linear infinite; /* Increased duration for smoother loop */
+    display: inline-block; /* Changed from flex to inline-block for transform */
+    white-space: nowrap; /* Keep content on one line */
+    /* padding-left: 100%; Removed padding, start transform from 0 */
   }
 
-  @keyframes marquee {
-    0% {
-      transform: translateX(0%);
+   @keyframes marquee {
+     0% {
+       transform: translateX(0%); /* Start with the first set visible */
      }
      100% {
-       transform: translateX(-100%);
+       /* Move exactly one width of the original content to loop smoothly */
+       transform: translateX(-50%);
      }
-  }
+   }
 }
+
+    

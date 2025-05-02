@@ -15,10 +15,14 @@ import Link from 'next/link';
 
 const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice[] }) => {
   const isTextNotices = title === "Text Notices";
-  const isImageOrVideoNotices = title === "Image Notices" || title === "Video Notices";
+  const isPdfNotices = title === "PDF Notices";
+  const isImageNotices = title === "Image Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null); // Ref to hold interval ID
+  const textScrollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for text scrolling animation
+  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (PDF/Image/Video)
+  const pdfScrollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for PDF scrolling
+  const pdfIframeRef = useRef<HTMLIFrameElement>(null); // Ref for the PDF iframe
 
    // Debugging Log: Initial render and received notices
    // console.log(`[DEBUG][NoticeBlock] Rendering: Title="${title}", Notices Count=${notices.length}`);
@@ -26,74 +30,153 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
    //   console.log(`[DEBUG][NoticeBlock][${title}] Received Notices Data:`, notices);
    // }
 
-  // Function to start the animation interval
-  const startAnimation = () => {
+  const totalItems = notices.length;
+  const itemsPerPage = isTextNotices ? 5 : 1; // Text: 5, Image/Video/PDF: 1
+  const totalPages = totalItems > 0 ? Math.ceil(totalItems / itemsPerPage) : 0;
+
+  // Function to start the animation interval for changing items/pages
+  const startItemChangeAnimation = () => {
     // Clear any existing interval before starting a new one
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-       // console.log(`[DEBUG][NoticeBlock][${title}] Cleared previous interval.`);
+    if (itemChangeIntervalRef.current) {
+      clearInterval(itemChangeIntervalRef.current);
+       // console.log(`[DEBUG][NoticeBlock][${title}] Cleared previous item change interval.`);
     }
 
-    const totalItems = notices.length;
-    if (totalItems === 0) {
-       // console.log(`[DEBUG][NoticeBlock][${title}] No notices, animation not started.`);
-      return; // Don't start if no notices
+    if (totalPages <= 1) {
+       // console.log(`[DEBUG][NoticeBlock][${title}] Only one page or no notices, item change animation not started.`);
+      return; // Don't start if only one page or no notices
     }
 
-    // Determine items per page based on notice type
-    const itemsPerPage = isTextNotices ? 5 : 1; // Text: 5, Image/Video/PDF: 1
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    // Determine animation duration based on type
+    let animationDuration: number;
+    if (isImageNotices) {
+      animationDuration = 20000; // 20 seconds for images
+    } else {
+      animationDuration = 10000; // 10 seconds for others (PDF, Video, Text pagination)
+    }
 
-    // Increased animation duration for slower scrolling/transitions
-    // Set different duration for text vs others if needed
-    const animationDuration = 10000; // 10 seconds for all types for now
+     console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation: TotalPages=${totalPages}, Duration=${animationDuration}ms`);
 
-     console.log(`[DEBUG][NoticeBlock][${title}] Starting animation: TotalItems=${totalItems}, ItemsPerPage=${itemsPerPage}, TotalPages=${totalPages}, Duration=${animationDuration}ms`);
-
-    intervalRef.current = setInterval(() => {
+    itemChangeIntervalRef.current = setInterval(() => {
       setCurrentPage((prevPage) => {
         const nextPage = (prevPage + 1) % totalPages;
-         // console.log(`[DEBUG][NoticeBlock][${title}] Interval tick: prevPage=${prevPage}, nextPage=${nextPage}`);
-
-        // Scroll logic for text notices (smooth scroll)
-        if (isTextNotices && containerRef.current) {
-           // console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text notices down.`);
-           // Scroll down effect
-           containerRef.current.scrollTo({
-             top: containerRef.current.scrollHeight, // Scroll to bottom first
-             behavior: 'smooth',
-           });
-           // After a delay, scroll back to top smoothly to show next batch
-           setTimeout(() => {
-             if (containerRef.current) {
-                // console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text notices back to top.`);
-               // Reset scroll smoothly to top *before* the next interval tick
-               containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-             }
-           }, animationDuration / 2); // Adjust timing relative to animationDuration
-        }
-        // For Image/Video/PDF notices, just update the page state for the next item
+         console.log(`[DEBUG][NoticeBlock][${title}] Item change interval tick: prevPage=${prevPage}, nextPage=${nextPage}`);
         return nextPage;
       });
     }, animationDuration);
   };
 
-  // Effect to start/restart animation when notices change
-  useEffect(() => {
-    // console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered due to notices change. Starting animation.`);
-    startAnimation();
-    // Cleanup function to clear interval on component unmount or notices change
-    return () => {
-      if (intervalRef.current) {
-        // console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up interval.`);
-        clearInterval(intervalRef.current);
+   // Function to start the text scrolling animation
+   const startTextScrollAnimation = () => {
+      if (!isTextNotices || totalPages === 0) return;
+
+      if (textScrollIntervalRef.current) {
+         clearInterval(textScrollIntervalRef.current);
       }
+
+      const scrollDuration = 10000; // Duration for the scroll cycle (e.g., 10 seconds)
+      console.log(`[DEBUG][NoticeBlock][${title}] Starting text scroll animation: Duration=${scrollDuration}ms`);
+
+      textScrollIntervalRef.current = setInterval(() => {
+         if (containerRef.current) {
+            const container = containerRef.current;
+            const scrollAmount = container.scrollHeight - container.clientHeight;
+
+             console.log(`[DEBUG][NoticeBlock][${title}] Text scroll interval tick.`);
+
+            if (scrollAmount > 0) {
+               // Scroll down smoothly
+                console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text down.`);
+               container.scrollTo({
+                  top: container.scrollHeight,
+                  behavior: 'smooth',
+               });
+
+               // Schedule scroll back to top after a delay (half the interval time)
+               setTimeout(() => {
+                  if (containerRef.current) { // Check ref again in timeout
+                      console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text back to top.`);
+                     containerRef.current.scrollTo({
+                        top: 0,
+                        behavior: 'smooth',
+                     });
+                  }
+               }, scrollDuration / 2); // Adjust timing as needed
+            } else {
+                console.log(`[DEBUG][NoticeBlock][${title}] Text content fits, no scroll needed.`);
+            }
+         }
+      }, scrollDuration); // Interval matches the full scroll cycle duration
+   };
+
+   // Function to start the PDF scrolling animation
+   const startPdfScrollAnimation = () => {
+       if (!isPdfNotices || totalPages === 0) return;
+
+       if (pdfScrollIntervalRef.current) {
+           clearInterval(pdfScrollIntervalRef.current);
+       }
+
+       const scrollStep = 1; // Pixels to scroll per interval
+       const scrollInterval = 100; // Milliseconds between scroll steps (adjust for speed)
+       console.log(`[DEBUG][NoticeBlock][${title}] Starting PDF scroll animation: Interval=${scrollInterval}ms`);
+
+       pdfScrollIntervalRef.current = setInterval(() => {
+           if (pdfIframeRef.current && pdfIframeRef.current.contentWindow) {
+               try {
+                   const iframeDoc = pdfIframeRef.current.contentWindow.document.body;
+                   const iframeScrollHeight = iframeDoc.scrollHeight;
+                   const iframeClientHeight = pdfIframeRef.current.contentWindow.innerHeight; // Use innerHeight of contentWindow
+                   let currentScrollTop = pdfIframeRef.current.contentWindow.scrollY; // Use scrollY of contentWindow
+
+                   if (iframeScrollHeight > iframeClientHeight) { // Check if scrolling is needed
+                       if (currentScrollTop + iframeClientHeight >= iframeScrollHeight - 5) { // Check if near the bottom (added tolerance)
+                           // Reached bottom, scroll back to top smoothly
+                           console.log(`[DEBUG][NoticeBlock][${title}] PDF reached bottom, scrolling to top.`);
+                           pdfIframeRef.current.contentWindow.scrollTo({ top: 0, behavior: 'smooth' });
+                       } else {
+                           // Scroll down by step
+                           pdfIframeRef.current.contentWindow.scrollBy({ top: scrollStep, behavior: 'smooth' });
+                       }
+                   } else {
+                       // Content fits, stop interval if running (optional)
+                       // console.log(`[DEBUG][NoticeBlock][${title}] PDF content fits, no scroll needed.`);
+                       // if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
+                   }
+               } catch (error) {
+                   // Likely a cross-origin error if PDF is not from the same origin
+                   console.warn(`[DEBUG][NoticeBlock][${title}] Could not access PDF iframe content, possibly due to cross-origin restrictions. PDF scrolling disabled.`, error);
+                   if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current); // Stop trying
+               }
+           }
+       }, scrollInterval);
+   };
+
+
+  // Effect to start/restart animations when notices change or type changes
+  useEffect(() => {
+    console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered. Starting relevant animations.`);
+    // Stop all previous intervals first
+    if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
+    if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
+    if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
+
+    // Start appropriate animations
+    startItemChangeAnimation(); // Handles changing items for all types if multiple pages exist
+    startTextScrollAnimation(); // Handles scrolling within the text block
+    startPdfScrollAnimation(); // Handles scrolling within the PDF iframe
+
+    // Cleanup function to clear intervals on component unmount or before effect runs again
+    return () => {
+      console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up intervals.`);
+      if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
+      if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
+      if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
     };
-     // Rerun effect if notices or type change (isTextNotices covers type dependency)
-  }, [notices, isTextNotices]);
+     // Dependencies ensure effect runs when notices or type-specific flags change
+  }, [notices, isTextNotices, isPdfNotices, isImageNotices, totalPages]); // Added totalPages dependency
 
 
-  const itemsPerPage = isTextNotices ? 5 : 1;
   const startIndex = currentPage * itemsPerPage;
   // Slice the notices based on current page and items per page
    const currentNotices = notices.slice(startIndex, startIndex + itemsPerPage);
@@ -122,7 +205,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       <CardContent className={`flex-grow overflow-hidden ${isTextNotices ? 'p-4' : 'p-1 md:p-2'} min-h-0`} ref={containerRef}>
          {hasNotices ? (
            isTextNotices ? (
-             <ul>
+             <ul className="h-full overflow-y-hidden"> {/* Ensure ul can contain scrolled content */}
                {currentNotices.map((notice) => (
                  <li key={notice._id} className="py-2 border-b last:border-b-0">
                    <div className="flex justify-between items-center">
@@ -142,9 +225,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
              // Display logic for PDF, Image, Video (shows one at a time)
              currentNotices.length > 0 && (
                <div className="transition-opacity duration-500 ease-in-out h-full" key={currentNotices[0]._id}> {/* Add key for transition */}
-                 <div className="flex flex-col space-y-2 h-full justify-center items-center text-center">
-                   <p className="font-medium px-2">{currentNotices[0].title}</p>
-                   <p className="text-sm text-muted-foreground">
+                 <div className="flex flex-col space-y-2 h-full justify-start items-center text-center"> {/* Changed justify-center to justify-start */}
+                   <p className="font-medium px-2 flex-shrink-0">{currentNotices[0].title}</p> {/* Ensure title doesn't cause overflow */}
+                   <p className="text-sm text-muted-foreground flex-shrink-0">
                       {new Date(currentNotices[0].date).toISOString().split('T')[0]}
                    </p>
                    {currentNotices[0].contentType === 'pdf' ? (
@@ -152,18 +235,20 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
                          {/* Ensure the URL is correctly passed and accessible */}
                          <iframe
+                           ref={pdfIframeRef} // Assign ref to the iframe
                            src={currentNotices[0].imageUrl}
                            title={currentNotices[0].title}
                            className="w-full h-full border-0 rounded-md"
                            onError={(e) => console.error(`[DEBUG][NoticeBlock][${title}] Error loading PDF:`, currentNotices[0].imageUrl, e)} // Add error handling
-                           // sandbox="allow-scripts allow-same-origin" // Use cautiously if needed
+                           // sandbox="allow-scripts allow-same-origin" // Use cautiously if needed - might break scrolling
+                           onLoad={() => console.log(`[DEBUG][NoticeBlock][${title}] PDF Iframe loaded: ${currentNotices[0].imageUrl}`)} // Log when iframe loads
                          />
                       </div>
                    ) : currentNotices[0].contentType === 'image' ? (
                      // Adjusted image container and image classes
                      (() => {
                         // Log the image URL right before rendering the img tag
-                        console.log(`[DEBUG][NoticeBlock][Image Notices] Rendering Image: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
+                        // console.log(`[DEBUG][NoticeBlock][Image Notices] Rendering Image: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
                         return null; // This IIFE doesn't render anything
                       })(),
                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
@@ -180,6 +265,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                      // Adjusted video container and video classes
                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
                        <video
+                         key={currentNotices[0].imageUrl} // Add key to force re-render on source change
                          src={currentNotices[0].imageUrl}
                          controls
                          autoPlay // Add autoPlay if desired for video cycling
@@ -235,6 +321,16 @@ const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
             {announcement}
           </span>
         ))}
+        {/* Duplicate announcements for seamless looping */}
+         {announcements.map((announcement, index) => (
+           <span
+             key={`dup-${index}`}
+             className="mx-4 inline-block transition-colors duration-300"
+             aria-hidden="true" // Hide duplicate from accessibility tree
+           >
+             {announcement}
+           </span>
+         ))}
       </div>
     </div>
   );
@@ -310,26 +406,10 @@ export default function Home() {
    // Log BEFORE filtering
    console.log("[DEBUG][Home] notices state before filtering:", notices);
 
-   const textNotices = notices.filter(notice => {
-       const isText = notice.contentType === 'text';
-       // if (isText) console.log("[DEBUG][Home] Filtering Text Notice:", notice.title, notice._id);
-       return isText;
-   });
-   const pdfNotices = notices.filter(notice => {
-       const isPdf = notice.contentType === 'pdf';
-       // if (isPdf) console.log("[DEBUG][Home] Filtering PDF Notice:", notice.title, notice._id);
-       return isPdf;
-   });
-   const imageNotices = notices.filter(notice => {
-       const isImage = notice.contentType === 'image';
-       // if (isImage) console.log("[DEBUG][Home] Filtering Image Notice:", notice.title, notice._id);
-       return isImage;
-   });
-   const videoNotices = notices.filter(notice => {
-      const isVideo = notice.contentType === 'video';
-      // if (isVideo) console.log("[DEBUG][Home] Filtering Video Notice:", notice.title, notice._id);
-      return isVideo;
-   });
+   const textNotices = notices.filter(notice => notice.contentType === 'text');
+   const pdfNotices = notices.filter(notice => notice.contentType === 'pdf');
+   const imageNotices = notices.filter(notice => notice.contentType === 'image');
+   const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
    // Log AFTER filtering
     console.log(`[DEBUG][Home] Filtered Notices - Text: ${textNotices.length}, PDF: ${pdfNotices.length}, Image: ${imageNotices.length}, Video: ${videoNotices.length}`);
@@ -378,3 +458,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
