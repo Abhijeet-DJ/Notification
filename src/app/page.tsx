@@ -21,18 +21,19 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const textScrollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for text scrolling animation
-  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (Video)
+  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (Video/PDF Pairs/Text Pages)
 
   const totalItems = notices.length;
   // Adjusted itemsPerPage logic: Text: 5, PDF/Image: All (handled by belt), Video: 1
   const itemsPerPage = isTextNotices ? 5 : isVideoNotices ? 1 : totalItems;
-  // Calculate totalPages only for paginated types (Text, Video)
-  // For PDFs, totalPages represents pairs
+  // Calculate totalPages only for paginated types (Text, Video, PDF pairs)
   const totalPages = (isTextNotices || isVideoNotices) && totalItems > 0
     ? Math.ceil(totalItems / itemsPerPage)
     : (isPdfNotices && totalItems > 0)
       ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
       : 0;
+   // Should the PDF section animate? Only if more than one pair exists.
+   const shouldPdfAnimate = isPdfNotices && totalPages > 1;
 
 
   // Function to start the animation interval for changing items/pages (Video/Text Pages/PDF Pairs)
@@ -127,8 +128,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
       if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
     };
-     // Include totalPages and currentPage for paginated types
-  }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages, currentPage]);
+     // Re-run effect if notices change or dimensions/type impacting animation change
+  }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages]);
 
 
   // Get indices for pagination/pairing
@@ -202,14 +203,18 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            ) : isPdfNotices ? (
                  // PDF Belt Logic (Vertical - 2 side-by-side)
                  <div className="h-full w-full overflow-hidden">
-                    <div className="flex flex-col h-full animate-marquee-vertical" style={{ animationPlayState: 'running' }}>
+                   {/* Apply animation class and style conditionally */}
+                    <div
+                        className={`flex flex-col h-full ${shouldPdfAnimate ? 'animate-marquee-vertical' : ''}`}
+                        style={{ animationPlayState: shouldPdfAnimate ? 'running' : 'paused' }}
+                     >
                         {/* Render PDF pairs */}
                         {Array.from({ length: totalPages }).map((_, pageIndex) => {
                             const pairStartIndex = pageIndex * 2;
                             const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
                             return (
                                 <div key={`pair-${pageIndex}`} className="flex w-full h-full flex-shrink-0">
-                                    {pair.map((notice, noticeIndexInPair) => (
+                                    {pair.map((notice) => (
                                         <div key={notice._id} className="w-1/2 h-full px-1"> {/* Half width, horizontal padding only */}
                                             <iframe
                                                 src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
@@ -225,13 +230,13 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                                 </div>
                             );
                         })}
-                        {/* Duplicate PDF pairs for seamless looping */}
-                        {Array.from({ length: totalPages }).map((_, pageIndex) => {
+                        {/* Duplicate PDF pairs for seamless looping, only if animating */}
+                        {shouldPdfAnimate && Array.from({ length: totalPages }).map((_, pageIndex) => {
                              const pairStartIndex = pageIndex * 2;
                              const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
                              return (
                                  <div key={`dup-pair-${pageIndex}`} className="flex w-full h-full flex-shrink-0" aria-hidden="true">
-                                     {pair.map((notice, noticeIndexInPair) => (
+                                     {pair.map((notice) => (
                                          <div key={`dup-${notice._id}`} className="w-1/2 h-full px-1"> {/* Half width, horizontal padding only */}
                                              <iframe
                                                  src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
@@ -432,3 +437,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
