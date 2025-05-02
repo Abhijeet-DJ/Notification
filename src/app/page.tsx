@@ -21,7 +21,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const isVideoNotices = title === "Video Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (Video only)
+  // Remove intervalRef as video swapping is now driven by onEnded
+  // const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const totalItems = notices.length;
   // Adjusted itemsPerPage logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
@@ -29,56 +30,31 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   // Calculate totalPages for different types
   const totalPages = (isVideoNotices && totalItems > 0) ? Math.ceil(totalItems / itemsPerPage)
                     : (isPdfNotices && totalItems > 0) ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
-                    : (isTextNotices && totalItems > 0) ? 1 // Text uses belt, conceptually 1 'page' of all items
+                    : (isTextNotices && totalItems > 0) ? Math.ceil(totalItems / 5) // Number of 'pages' for Text (groups of 5)
                     : 0;
 
   // Should the section animate? Only if more than one page/pair exists or enough text items.
   const shouldAnimate = (isPdfNotices && totalPages > 1)
-                       || (isTextNotices && totalItems > 5) // Only animate text if more than 5 items
+                       || (isTextNotices && totalPages > 1) // Animate text if more than 5 items (more than 1 page)
                        || isImageNotices; // Always animate images if any
 
 
-  // Function to start the animation interval for changing items/pages (Only Video)
-  const startItemChangeAnimation = () => {
-    if (itemChangeIntervalRef.current) {
-      clearInterval(itemChangeIntervalRef.current);
-    }
-
-    // Only start for Video notices with more than one item
-    if (!isVideoNotices || totalPages <= 1) {
-        return;
-    }
-
-    const animationDuration = 10000; // 10 seconds per video (before it swaps onEnded) - adjust if needed
-
-    console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation (Video): TotalPages=${totalPages}, Duration=${animationDuration}ms`);
-
-    itemChangeIntervalRef.current = setInterval(() => {
-      setCurrentPage((prevPage) => {
-        const nextPage = (prevPage + 1) % totalPages;
-         console.log(`[DEBUG][NoticeBlock][${title}] Video change interval tick: prevPage=${prevPage}, nextPage=${nextPage}`);
-        return nextPage;
-      });
-    }, animationDuration); // Note: video duration might vary, handleVideoEnded is primary driver
-  };
+  // Remove startItemChangeAnimation as interval is no longer used for videos
+  // const startItemChangeAnimation = () => { ... };
 
 
-  // Effect to start/restart animations when notices change or type changes
+  // Effect to manage animations (now only relevant for non-video belt animations if needed)
   useEffect(() => {
-    console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered. Starting relevant animations.`);
-    // Stop all previous intervals first
-    if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
+    console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered.`);
+    // No interval to start for videos anymore
 
-    // Start appropriate animations
-    startItemChangeAnimation(); // Handles changing video items
-    // Belt animations for Text/PDF/Image are handled by CSS class
-
-    // Cleanup function to clear intervals on component unmount or before effect runs again
+    // Cleanup function (might not be needed if no intervals are set)
     return () => {
-      console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up intervals.`);
-      if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
+      console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up (if any intervals were set).`);
+      // if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
     };
-     // Re-run effect if notices change or dimensions/type impacting animation change
+     // Re-run effect if notices change or type changes impacting animation
+     // Removed dependencies related to video interval
   }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages]);
 
 
@@ -428,3 +404,5 @@ export default function Home() {
     </div>
   );
 }
+
+
