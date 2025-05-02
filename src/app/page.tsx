@@ -171,9 +171,11 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                         {/* Render all images */}
                         {notices.map((notice, index) => (
                              <div key={`${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2">
-                                 <img
+                                 <Image
                                      src={notice.imageUrl}
                                      alt={notice.title}
+                                     width={200} // Specify a width for optimization, adjust as needed
+                                     height={200} // Specify a height for optimization, adjust based on aspect ratio
                                      className="h-full w-auto object-contain rounded-md"
                                      onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading Image:`, notice.imageUrl, e)}
                                  />
@@ -182,9 +184,11 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          {/* Duplicate images for seamless looping */}
                          {notices.map((notice, index) => (
                              <div key={`dup-${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2" aria-hidden="true">
-                                 <img
+                                 <Image
                                      src={notice.imageUrl}
                                      alt="" // Alt text empty for decorative duplicate
+                                     width={200} // Specify a width for optimization
+                                     height={200} // Specify a height for optimization
                                      className="h-full w-auto object-contain rounded-md"
                                      onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading duplicate Image:`, notice.imageUrl, e)}
                                  />
@@ -444,7 +448,3 @@ export default function Home() {
     </div>
   );
 }
-
-
-    
-
