@@ -41,8 +41,8 @@ const ensureUploadDirExists = async () => {
   }
 };
 
-// Define file size limit (e.g., 10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+// Define file size limit (Update to 45MB)
+const MAX_FILE_SIZE = 45 * 1024 * 1024; // 45 MB
 
 export async function POST(req: NextRequest) {
   console.log('[upload-api] Received POST request.');
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     // 4. Validate file size
     if (file.size > MAX_FILE_SIZE) {
        console.error(`[upload-api] File too large: ${file.size} bytes. Max allowed: ${MAX_FILE_SIZE} bytes`);
+       // Update error message to reflect 45MB limit
        return NextResponse.json({ success: false, error: `File too large. Max size is ${MAX_FILE_SIZE / (1024*1024)}MB.` }, { status: 413 }); // 413 Payload Too Large
     }
 

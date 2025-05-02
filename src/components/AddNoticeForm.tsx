@@ -29,8 +29,9 @@ import { addNotice } from '@/app/actions/addNotice'; // Server Action
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress"; // Import Progress component
 
-// Helper to check file size (e.g., max 10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+// Helper to check file size (Update to 45MB)
+const MAX_FILE_SIZE = 45 * 1024 * 1024; // 45 MB
+const MAX_FILE_SIZE_MB = MAX_FILE_SIZE / (1024 * 1024); // Calculate MB for messages
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
 const ACCEPTED_PDF_TYPES = ["application/pdf"];
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
@@ -70,7 +71,8 @@ const formSchema = z.object({
         // Check size
         if (file.size > MAX_FILE_SIZE) {
            console.error(`[Schema Refine] File too large: ${file.size}`);
-           form.setError("file", { message: `Max file size is 10MB. Yours is ${(file.size / (1024*1024)).toFixed(2)}MB` });
+           // Update error message to reflect 45MB limit
+           form.setError("file", { message: `Max file size is ${MAX_FILE_SIZE_MB}MB. Yours is ${(file.size / (1024*1024)).toFixed(2)}MB` });
            return false;
         }
         // Check type based on noticeType
@@ -411,7 +413,8 @@ export default function AddNoticeForm() {
                    />
                 </FormControl>
                  <FormDescription>
-                   {selectedFileName ? `Selected file: ${selectedFileName}` : `Upload the ${noticeType} file. Max size: 10MB.`}
+                   {/* Update form description to reflect 45MB limit */}
+                   {selectedFileName ? `Selected file: ${selectedFileName}` : `Upload the ${noticeType} file. Max size: ${MAX_FILE_SIZE_MB}MB.`}
                  </FormDescription>
                  {/* Display upload progress */}
                  {isUploading && (
@@ -458,3 +461,4 @@ export default function AddNoticeForm() {
     </Form>
   );
 }
+
