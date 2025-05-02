@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -27,8 +28,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const totalItems = notices.length;
   // Items per page logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
   const itemsPerPage = isVideoNotices ? 1 : totalItems;
-  // Threshold for text notice animation
-  const textAnimationThreshold = 5;
+  // Threshold for text notice animation - **CHANGED TO 3**
+  const textAnimationThreshold = 3;
 
   // Calculate totalPages or determine if animation should occur
   const totalPages = (isVideoNotices && totalItems > 0) ? Math.ceil(totalItems / itemsPerPage)
