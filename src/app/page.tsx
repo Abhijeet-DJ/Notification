@@ -20,10 +20,10 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const intervalRef = useRef<NodeJS.Timeout | null>(null); // Ref to hold interval ID
 
    // --- Debugging Log ---
-   console.log(`[DEBUG] NoticeBlock Rendering: Title="${title}", Notices Count=${notices.length}`);
-   if (title === "Image Notices" && notices.length > 0) {
-     console.log("[DEBUG] Image Notices Data:", notices);
-   }
+   // console.log(`[DEBUG] NoticeBlock Rendering: Title="${title}", Notices Count=${notices.length}`);
+   // if (title === "Image Notices" && notices.length > 0) {
+   //   console.log("[DEBUG] Image Notices Data:", notices);
+   // }
    // --- End Debugging Log ---
 
 
@@ -85,10 +85,10 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
    const currentNotices = notices.slice(startIndex, startIndex + itemsPerPage);
 
    // --- Debugging Log ---
-   console.log(`[DEBUG] Current Notices for "${title}":`, currentNotices);
-   if (title === "Image Notices" && currentNotices.length > 0) {
-     console.log("[DEBUG] Current Image Notice URL:", currentNotices[0]?.imageUrl);
-   }
+   // console.log(`[DEBUG] Current Notices for "${title}":`, currentNotices);
+   // if (title === "Image Notices" && currentNotices.length > 0) {
+   //   console.log("[DEBUG] Current Image Notice URL:", currentNotices[0]?.imageUrl);
+   // }
    // --- End Debugging Log ---
 
 
@@ -96,11 +96,11 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
    // Debug log to see what currentNotices contains for PDF block
    if (title === "PDF Notices") {
-     console.log("PDF Notices - currentNotices:", currentNotices);
+     // console.log("PDF Notices - currentNotices:", currentNotices);
    }
    // Debug log for Image Notices
    if (title === "Image Notices") {
-     console.log("[DEBUG] NoticeBlock - Image Notices Data:", currentNotices);
+     // console.log("[DEBUG] NoticeBlock - Image Notices Data:", currentNotices);
    }
 
 
@@ -154,7 +154,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                      // Adjusted image container and image classes
                      // --- Debugging Log ---
                      (() => {
-                        console.log(`[DEBUG] Rendering Image Notice: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
+                        console.log(`[DEBUG][NoticeBlock] Rendering Image Notice: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
                         return null;
                       })(),
                      // --- End Debugging Log ---
@@ -163,7 +163,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          src={currentNotices[0].imageUrl}
                          alt={currentNotices[0].title}
                          className="max-w-full max-h-full object-contain rounded-md" // Ensure image fits without cropping
-                         onError={(e) => console.error("[DEBUG] Error loading Image:", currentNotices[0].imageUrl, e)} // Add error handling
+                         onError={(e) => console.error("[DEBUG][NoticeBlock] Error loading Image:", currentNotices[0].imageUrl, e)} // Add error handling
                        />
                       </div>
                    ) : currentNotices[0].contentType === 'video' ? (
@@ -247,7 +247,7 @@ export default function Home() {
     const loadData = async () => {
       try {
         const noticesData = await getCollegeNotices();
-        console.log("Fetched notices in Home component:", noticesData); // Log fetched data
+        // console.log("[DEBUG][Home] Fetched notices:", noticesData); // Log fetched data
         setNotices(noticesData);
 
         const announcements = await getBulletinAnnouncements();
@@ -273,10 +273,10 @@ export default function Home() {
    const videoNotices = notices.filter(notice => notice.contentType === 'video');
 
    // Log filtered notices for debugging
-   console.log("Filtered PDF Notices:", pdfNotices);
-   console.log("[DEBUG] Filtered Image Notices in Home:", imageNotices);
-   console.log("Filtered Video Notices:", videoNotices);
-   console.log("Filtered Text Notices:", textNotices);
+   // console.log("[DEBUG][Home] Filtered PDF Notices:", pdfNotices);
+   // console.log("[DEBUG][Home] Filtered Image Notices:", imageNotices);
+   // console.log("[DEBUG][Home] Filtered Video Notices:", videoNotices);
+   // console.log("[DEBUG][Home] Filtered Text Notices:", textNotices);
 
 
   return (

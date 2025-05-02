@@ -33,13 +33,13 @@ async function connectToDatabase(): Promise<Db> {
   const client = new MongoClient(uri);
   try {
     await client.connect();
-    console.log("Connected to MongoDB for getCollegeNotices");
+    console.log("[getCollegeNotices] Connected to MongoDB");
     const db = client.db(dbName);
     // Store client on Db object for later closing
     (db as any)._client = client;
     return db;
   } catch (error) {
-    console.error("Failed to connect to MongoDB", error);
+    console.error("[getCollegeNotices] Failed to connect to MongoDB", error);
     await client.close(); // Close client if connection failed
     throw error; // Rethrow to indicate failure
   }
@@ -49,7 +49,7 @@ async function closeDatabaseConnection(db: Db) {
     const client = (db as any)._client;
     if (client) {
         await client.close();
-        console.log("MongoDB connection closed for getCollegeNotices.");
+        console.log("[getCollegeNotices] MongoDB connection closed.");
     }
 }
 
@@ -69,11 +69,11 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
     const noticesFromDb = await collection.find({})
                                         .sort({ priority: 1, date: -1 }) // Sort by priority asc, date desc
                                         .toArray();
-    console.log("Fetched notices from DB:", noticesFromDb.length);
-    console.log("[DEBUG] Raw data from DB:", noticesFromDb); // Added Debug Log
+    console.log("[getCollegeNotices] Fetched notices from DB:", noticesFromDb.length);
+    // console.log("[DEBUG][getCollegeNotices] Raw data from DB:", noticesFromDb); // Optionally log all raw data
 
     const validatedNotices: CollegeNotice[] = noticesFromDb.map((item: any) => {
-      console.log("[DEBUG] Processing raw DB item:", item); // Added Debug Log
+      // console.log("[DEBUG][getCollegeNotices] Processing raw DB item:", item); // Log each item being processed
 
       // Validate date
       let isoDate: string;
@@ -81,7 +81,7 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
            isoDate = item.date instanceof Date ? item.date.toISOString() : new Date(item.date).toISOString();
            if (isNaN(new Date(isoDate).getTime())) throw new Error('Invalid date'); // Check if date is valid
       } catch (e) {
-           console.warn(`Invalid or missing date for notice "${item.title}". Defaulting to current date.`);
+           console.warn(`[getCollegeNotices] Invalid or missing date for notice "${item.title}". Defaulting to current date.`);
            isoDate = new Date().toISOString(); // Default to now if invalid
       }
 
@@ -92,9 +92,11 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
       // 1. Prioritize the contentType saved in the database if it's valid
       if (item.contentType && validTypes.includes(item.contentType)) {
           determinedContentType = item.contentType;
+          // console.log(`[DEBUG][getCollegeNotices] Using DB contentType: ${determinedContentType} for "${item.title}"`);
       }
-      // 2. If DB contentType is missing or invalid, infer from imageUrl
+      // 2. If DB contentType is missing or invalid, infer from imageUrl (THIS IS A FALLBACK - shouldn't happen with current addNotice logic)
       else if (item.imageUrl) {
+          console.warn(`[getCollegeNotices] DB contentType missing/invalid for "${item.title}", inferring from imageUrl: ${item.imageUrl}`);
           const url = item.imageUrl.toLowerCase();
           if (url.endsWith('.pdf')) {
               determinedContentType = 'pdf';
@@ -103,64 +105,63 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
           } else if (url.match(/\.(mp4|webm|mov|ogg)$/)) { // Added common video types
               determinedContentType = 'video';
           } else if (item.content && typeof item.content === 'string' && item.content.trim()) {
-            // Fallback to text if URL doesn't match and content exists
             determinedContentType = 'text';
           }
       }
       // 3. If no imageUrl, and content exists, it's text
       else if (item.content && typeof item.content === 'string' && item.content.trim()) {
           determinedContentType = 'text';
+          // console.log(`[DEBUG][getCollegeNotices] Determined type 'text' based on content for "${item.title}"`);
       }
-      // 4. Final fallback (should be rare if data is saved correctly)
+      // 4. Final fallback (should be rare)
       else {
-          determinedContentType = 'text'; // Default if nothing else matches
+          console.warn(`[getCollegeNotices] Could not determine content type for "${item.title}", defaulting to 'text'.`);
+          determinedContentType = 'text';
       }
       // --- End Content Type Determination ---
 
-       // --- Debugging Log ---
+       // --- Debugging Log Specific to Images ---
        if (determinedContentType === 'image') {
-           console.log(`[DEBUG] Image Notice Processed: Title="${item.title}", DB Type=${item.contentType}, Inferred Type=${determinedContentType}, URL=${item.imageUrl}`);
+           console.log(`[DEBUG][getCollegeNotices] Image Notice Processed: Title="${item.title}", DB Type=${item.contentType}, Final Type=${determinedContentType}, URL=${item.imageUrl}`);
        }
        // --- End Debugging Log ---
 
-
-      // Logging for debugging
-      console.log(`Notice: "${item.title}", DB Type: ${item.contentType}, Inferred Type: ${determinedContentType}, URL: ${item.imageUrl}, Content Exists: ${!!item.content}`);
+      // Logging for debugging overall determination logic
+      // console.log(`[DEBUG][getCollegeNotices] Notice: "${item.title}", DB Type: ${item.contentType}, Final Type: ${determinedContentType}, URL: ${item.imageUrl}, Content Exists: ${!!item.content}`);
 
       // If it's supposed to be a file type but imageUrl is missing, log a warning
       if (determinedContentType !== 'text' && !item.imageUrl) {
-          console.warn(`Notice "${item.title}" is type '${determinedContentType}' but lacks an imageUrl.`);
+          console.warn(`[getCollegeNotices] Notice "${item.title}" is type '${determinedContentType}' but lacks an imageUrl.`);
       }
       // Log if text type lacks content but isn't supposed to be a file type
       if (determinedContentType === 'text' && !(item.content && typeof item.content === 'string' && item.content.trim())) {
-          console.warn(`Notice "${item.title}" is type 'text' but lacks content.`);
+          // This might be acceptable if title-only text notices are allowed
+          // console.warn(`[getCollegeNotices] Notice "${item.title}" is type 'text' but lacks content.`);
       }
 
-      const noticeObj = {
+      const noticeObj: CollegeNotice = {
         _id: item._id ? item._id.toString() : `generated_${Math.random()}`,
         title: item.title || 'Untitled Notice',
-        // Store content only if it's explicitly a text notice (based on FINAL determined type)
         content: determinedContentType === 'text' ? (item.content || '') : '',
-        // Store the imageUrl regardless, but it's primarily used for file types
         imageUrl: item.imageUrl || '',
         priority: typeof item.priority === 'number' ? item.priority : 3,
         createdBy: item.createdBy || 'Unknown',
         date: isoDate,
         originalFileName: item.originalFileName || '',
         __v: item.__v,
-        contentType: determinedContentType, // Use the final determined/validated content type
+        contentType: determinedContentType,
       };
-      console.log("[DEBUG] Mapped notice object:", noticeObj); // Added Debug Log
+      // console.log("[DEBUG][getCollegeNotices] Mapped notice object:", noticeObj); // Log the final object
       return noticeObj;
 
     }).filter((notice): notice is CollegeNotice => notice !== null); // Filter out any potential nulls if mapping failed
 
     // No need to sort again here, database sort is efficient
-    console.log("Validated notices:", validatedNotices.length);
+    console.log("[getCollegeNotices] Validated notices count:", validatedNotices.length);
     return validatedNotices;
 
   } catch (error) {
-    console.error('Failed to fetch or process college notices:', error);
+    console.error('[getCollegeNotices] Failed to fetch or process college notices:', error);
     return []; // Return empty array on error
   } finally {
     if (db) {
@@ -175,8 +176,9 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
  * @returns A promise that resolves to an array of strings.
  */
 export async function getBulletinAnnouncements(): Promise<string[]> {
+  let notices: CollegeNotice[] = [];
   try {
-    const notices = await getCollegeNotices(); // Re-use fetching logic
+    notices = await getCollegeNotices(); // Re-use fetching logic
     const highPriority = notices
       .filter(n => n.contentType === 'text' && n.priority === 1) // Filter for highest priority TEXT notices
       .slice(0, 5) // Limit the number of announcements
@@ -186,18 +188,24 @@ export async function getBulletinAnnouncements(): Promise<string[]> {
       return highPriority;
     }
   } catch (error) {
-    console.error("Failed to fetch notices for bulletin:", error);
-    // Fall through to static data if fetch fails
+    console.error("[getBulletinAnnouncements] Failed to fetch notices for bulletin:", error);
+    // Fall through to static or previously fetched data if available
   }
 
-  // Fallback static data
-  console.log("Using static bulletin data.");
-  return [
-    'Welcome to the College Notifier App!',
-    'Check back often for important updates.',
-    'Have a great semester!',
-    'Admissions Open for 2025 Session.',
-    'Scholarship Application Deadline Approaching.',
-    'Upcoming Holiday: College Closed on Monday.'
-  ];
+  // Fallback static data if fetch fails or no high-priority text notices found
+  if (notices.length === 0) {
+     console.log("[getBulletinAnnouncements] Using static bulletin data as fetch failed.");
+     return [
+       'Welcome to the College Notifier App!',
+       'Check back often for important updates.',
+       'Have a great semester!',
+       'Admissions Open for 2025 Session.',
+       'Scholarship Application Deadline Approaching.',
+       'Upcoming Holiday: College Closed on Monday.'
+     ];
+  } else {
+    // If fetch succeeded but no high priority text, use titles from other notices as fallback
+    console.log("[getBulletinAnnouncements] No high-priority text notices, using other notice titles.");
+    return notices.slice(0, 5).map(n => n.title); // Use titles from top 5 overall notices
+  }
 }

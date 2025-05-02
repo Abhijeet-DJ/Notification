@@ -9,29 +9,19 @@ import { MongoClient, Db } from 'mongodb';
 // to a storage solution (like Firebase Storage, AWS S3, Cloudinary, etc.)
 // and get back the public URL.
 async function uploadFileAndGetUrl(file: File): Promise<string> {
-  console.log(`Simulating upload for file: ${file.name}, size: ${file.size}`);
+  console.log(`[Placeholder] Simulating upload for file: ${file.name}, size: ${file.size}`);
   // In a real scenario:
   // 1. Connect to your storage service.
   // 2. Upload the file buffer (await file.arrayBuffer()).
   // 3. Get the public URL returned by the storage service.
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-  // For now, return a placeholder URL based on the file type - THIS IS NOT FUNCTIONAL for viewing
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
-      // Use picsum for placeholder images - ensure a consistent seed maybe?
-      // Using a fixed seed for easier debugging, replace later if needed
-      const imageUrl = `https://picsum.photos/seed/${encodeURIComponent(file.name.substring(0, 10))}/400/300`; // Use part of filename as seed
-      console.log(`[DEBUG] Generated placeholder image URL: ${imageUrl}`);
-      return imageUrl;
-  } else if (extension === 'pdf') {
-      // Using a dummy PDF link for placeholder
-      return `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
-  } else if (['mp4', 'webm', 'mov', 'ogg'].includes(extension)) {
-       // Using a placeholder video link
-       return `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4`;
-  }
-  // Fallback placeholder if type is unknown or not supported for direct viewing
-  return `/uploads/placeholder-${encodeURIComponent(file.name)}`; // Represents a path, not a direct viewable URL
+  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+
+  // Generate a placeholder URL based on the filename.
+  // THIS IS NOT A FUNCTIONAL URL FOR VIEWING THE ACTUAL UPLOADED FILE.
+  // It represents where the file *might* be stored in a real system.
+  const placeholderUrl = `/uploads/placeholder-${Date.now()}-${encodeURIComponent(file.name)}`;
+  console.log(`[Placeholder] Generated placeholder URL: ${placeholderUrl}`);
+  return placeholderUrl;
 }
 // --- End Placeholder ---
 
@@ -144,12 +134,12 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
       file: rawData.file && rawData.file instanceof File && rawData.file.size > 0 ? rawData.file : undefined,
     };
 
-    console.log("Data being validated:", dataToValidate);
+    console.log("[addNotice] Data being validated:", dataToValidate);
 
     const validatedData = formDataSchema.safeParse(dataToValidate);
 
     if (!validatedData.success) {
-      console.error("Validation errors:", validatedData.error.format());
+      console.error("[addNotice] Validation errors:", validatedData.error.format());
       const errorMessages = validatedData.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
       return { success: false, error: `Invalid form data. ${errorMessages}` };
     }
@@ -161,12 +151,11 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     // Handle file upload if it's not a text notice and a file was validated
     if (noticeType !== 'text' && validatedFile) {
         try {
-            uploadedFileUrl = await uploadFileAndGetUrl(validatedFile); // Use the placeholder
-            console.log(`[DEBUG] Generated URL for ${validatedFile.name}: ${uploadedFileUrl}`); // Added Debug Log
-            console.log(`File ${validatedFile.name} uploaded, URL: ${uploadedFileUrl}`);
+            uploadedFileUrl = await uploadFileAndGetUrl(validatedFile); // Use the refined placeholder
+            console.log(`[addNotice] Placeholder URL generated for ${validatedFile.name}: ${uploadedFileUrl}`);
         } catch (uploadError: any) {
-             console.error("File upload failed:", uploadError);
-             return { success: false, error: `Failed to upload file: ${uploadError.message}` };
+             console.error("[addNotice] Placeholder file upload failed:", uploadError);
+             return { success: false, error: `Failed to simulate file upload: ${uploadError.message}` };
         }
     } else if (noticeType !== 'text' && !validatedFile) {
          // This should be caught by Zod, but double-check
@@ -180,18 +169,18 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
       // content is already transformed to '' if null/undefined by Zod
       content: noticeType === 'text' ? content : '',
       // Store the URL obtained from upload/placeholder if it's not a text notice
-      imageUrl: noticeType !== 'text' ? uploadedFileUrl : '', // This is the URL where the file can be accessed
+      imageUrl: noticeType !== 'text' ? uploadedFileUrl : '', // This is the placeholder URL
       priority, // Store the numeric priority
       createdBy: 'admin_interface', // Placeholder user
       date: new Date(),
       // Store original file name only for file-based notices
       originalFileName: noticeType !== 'text' ? (fileName || validatedFile?.name || '') : '',
       // Explicitly store the intended content type based on the form selection
-      contentType: noticeType, // &lt;--- Ensure this is set directly from the form's noticeType
+      contentType: noticeType, // <--- Ensure this is set directly from the form's noticeType
     };
 
-    console.log('Attempting to add new notice to DB:', newNotice);
-    console.log('[DEBUG] Saving notice with imageUrl:', newNotice.imageUrl); // Added Debug Log
+    console.log('[addNotice] Attempting to add new notice to DB:', newNotice);
+    console.log('[addNotice] Saving notice with imageUrl:', newNotice.imageUrl); // Log the URL being saved
 
     // ** MongoDB Integration **
     db = await connectToDatabase();
@@ -200,18 +189,18 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
     const result = await collection.insertOne(newNotice);
 
     if (!result.acknowledged || !result.insertedId) {
-      console.error('Failed to insert notice into MongoDB');
+      console.error('[addNotice] Failed to insert notice into MongoDB');
       return { success: false, error: 'Failed to save notice to the database.' };
     }
 
-    console.log('Notice added to MongoDB with id:', result.insertedId);
+    console.log('[addNotice] Notice added to MongoDB with id:', result.insertedId);
 
     revalidatePath('/'); // Clear the cache for the home page
 
     return { success: true };
 
   } catch (error: any) {
-    console.error('Error in addNotice server action:', error);
+    console.error('[addNotice] Error in addNotice server action:', error);
     let errorMessage = 'An unexpected error occurred while adding the notice.';
      if (error instanceof z.ZodError) {
        errorMessage = `Validation Error: ${error.errors.map(e => e.message).join(', ')}`;
