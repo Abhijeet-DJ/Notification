@@ -114,6 +114,13 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
       }
       // --- End Content Type Determination ---
 
+       // --- Debugging Log ---
+       if (determinedContentType === 'image') {
+           console.log(`[DEBUG] Image Notice Processed: Title="${item.title}", DB Type=${item.contentType}, Inferred Type=${determinedContentType}, URL=${item.imageUrl}`);
+       }
+       // --- End Debugging Log ---
+
+
       // Logging for debugging
       console.log(`Notice: "${item.title}", DB Type: ${item.contentType}, Inferred Type: ${determinedContentType}, URL: ${item.imageUrl}, Content Exists: ${!!item.content}`);
 

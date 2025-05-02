@@ -18,8 +18,11 @@ async function uploadFileAndGetUrl(file: File): Promise<string> {
   // For now, return a placeholder URL based on the file type - THIS IS NOT FUNCTIONAL for viewing
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
-      // Use picsum for placeholder images
-      return `https://picsum.photos/seed/${encodeURIComponent(file.name)}/400/300`;
+      // Use picsum for placeholder images - ensure a consistent seed maybe?
+      // Using a fixed seed for easier debugging, replace later if needed
+      const imageUrl = `https://picsum.photos/seed/${encodeURIComponent(file.name.substring(0, 10))}/400/300`; // Use part of filename as seed
+      console.log(`[DEBUG] Generated placeholder image URL: ${imageUrl}`);
+      return imageUrl;
   } else if (extension === 'pdf') {
       // Using a dummy PDF link for placeholder
       return `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
@@ -183,7 +186,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
       // Store original file name only for file-based notices
       originalFileName: noticeType !== 'text' ? (fileName || validatedFile?.name || '') : '',
       // Explicitly store the intended content type based on the form selection
-      contentType: noticeType, // <--- Ensure this is set directly from the form's noticeType
+      contentType: noticeType, // &lt;--- Ensure this is set directly from the form's noticeType
     };
 
     console.log('Attempting to add new notice to DB:', newNotice);

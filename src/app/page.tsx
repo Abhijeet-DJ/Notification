@@ -83,6 +83,10 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
    if (title === "PDF Notices") {
      console.log("PDF Notices - currentNotices:", currentNotices);
    }
+   // Debug log for Image Notices
+   if (title === "Image Notices") {
+     console.log("[DEBUG] NoticeBlock - Image Notices Data:", currentNotices);
+   }
 
 
   return (
@@ -113,9 +117,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            ) : (
              // Display logic for PDF, Image, Video (shows one at a time)
              currentNotices.length > 0 && (
-               <div className="transition-all duration-500 h-full"> {/* Ensure container takes full height */}
-                 <div className="flex flex-col space-y-2 h-full justify-center items-center text-center"> {/* Use flex-col, center content */}
-                   <p className="font-medium px-2">{currentNotices[0].title}</p> {/* Added horizontal padding */}
+               <div className="transition-all duration-500 h-full">
+                 <div className="flex flex-col space-y-2 h-full justify-center items-center text-center">
+                   <p className="font-medium px-2">{currentNotices[0].title}</p>
                    <p className="text-sm text-muted-foreground">
                       {new Date(currentNotices[0].date).toISOString().split('T')[0]}
                    </p>
@@ -133,12 +137,18 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                       </div>
                    ) : currentNotices[0].contentType === 'image' ? (
                      // Adjusted image container and image classes
+                     // --- Debugging Log ---
+                     (() => {
+                        console.log(`[DEBUG] Rendering Image Notice: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
+                        return null;
+                      })(),
+                     // --- End Debugging Log ---
                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
                        <img
                          src={currentNotices[0].imageUrl}
                          alt={currentNotices[0].title}
                          className="max-w-full max-h-full object-contain rounded-md" // Ensure image fits without cropping
-                         onError={(e) => console.error("Error loading Image:", currentNotices[0].imageUrl, e)} // Add error handling
+                         onError={(e) => console.error("[DEBUG] Error loading Image:", currentNotices[0].imageUrl, e)} // Add error handling
                        />
                       </div>
                    ) : currentNotices[0].contentType === 'video' ? (
@@ -249,7 +259,7 @@ export default function Home() {
 
    // Log filtered notices for debugging
    console.log("Filtered PDF Notices:", pdfNotices);
-   console.log("Filtered Image Notices:", imageNotices);
+   console.log("[DEBUG] Filtered Image Notices in Home:", imageNotices);
    console.log("Filtered Video Notices:", videoNotices);
    console.log("Filtered Text Notices:", textNotices);
 
