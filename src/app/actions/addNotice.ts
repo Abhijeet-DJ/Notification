@@ -179,7 +179,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
       // content is already transformed to '' if null/undefined by Zod
       content: noticeType === 'text' ? content : '',
       // Store the URL obtained from upload/placeholder if it's not a text notice
-      imageUrl: noticeType !== 'text' ? uploadedFileUrl : '',
+      imageUrl: noticeType !== 'text' ? uploadedFileUrl : '', // This is the URL where the file can be accessed
       priority, // Store the numeric priority
       createdBy: 'admin_interface', // Placeholder user
       date: new Date(),

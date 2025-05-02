@@ -93,6 +93,7 @@ type NoticeFormData = z.infer<typeof noticeSchema>;
 export default function AddNoticeForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null); // State to hold the selected file name
 
   const form = useForm<NoticeFormData>({
     resolver: zodResolver(noticeSchema),
@@ -156,6 +157,7 @@ export default function AddNoticeForm() {
           description: "The new notice has been successfully added.",
         });
         form.reset(); // Reset form after successful submission
+        setSelectedFileName(null); // Clear selected file name display
       } else {
         toast({
           title: "Error Adding Notice",
@@ -210,6 +212,7 @@ export default function AddNoticeForm() {
                 // Reset other fields when type changes
                 form.setValue('file', undefined); // Clear file input
                 form.setValue('content', ''); // Clear content
+                setSelectedFileName(null); // Clear file name display
               }} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -256,7 +259,7 @@ export default function AddNoticeForm() {
           <FormField
             control={form.control}
             name="file"
-            render={({ field }) => ( // Removed unnecessary destructuring
+            render={({ field: { onChange, ...restField } }) => (
               <FormItem>
                 <FormLabel>
                    Upload {noticeType === 'pdf' ? 'PDF' : noticeType === 'image' ? 'Image' : 'Video'}
@@ -269,11 +272,20 @@ export default function AddNoticeForm() {
                        noticeType === 'image' ? ACCEPTED_IMAGE_TYPES.join(',') :
                        noticeType === 'video' ? ACCEPTED_VIDEO_TYPES.join(',') : ''
                      }
-                     {...fileRef} // Use the registered ref here
+                     {...fileRef}
+                     onChange={(e) => {
+                         onChange(e.target.files); // Pass the FileList to react-hook-form
+                         if (e.target.files && e.target.files[0]) {
+                           setSelectedFileName(e.target.files[0].name); // Update state with selected file name
+                         } else {
+                           setSelectedFileName(null); // Clear if no file selected
+                         }
+                      }}
+                     {...restField} // Spread the rest of the field props
                    />
                 </FormControl>
                  <FormDescription>
-                   Upload the {noticeType} file. Max size: 10MB.
+                   {selectedFileName ? `Selected file: ${selectedFileName}` : `Upload the ${noticeType} file. Max size: 10MB.`}
                  </FormDescription>
                 <FormMessage />
               </FormItem>
