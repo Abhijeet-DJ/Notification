@@ -4,79 +4,35 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { MongoClient, Db } from 'mongodb';
 
-// --- Placeholder for actual file upload service ---
-// In a real app, you would import and use a service to upload the file
-// to a storage solution (like Firebase Storage, AWS S3, Cloudinary, etc.)
-// and get back the public URL.
-async function uploadFileAndGetUrl(file: File): Promise<string> {
-  console.log(`[Placeholder] Simulating upload for file: ${file.name}, size: ${file.size}`);
-  // In a real scenario:
-  // 1. Connect to your storage service.
-  // 2. Upload the file buffer (await file.arrayBuffer()).
-  // 3. Get the public URL returned by the storage service.
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+// --- Placeholder for actual file upload service removed ---
 
-  // Generate a placeholder URL based on the filename.
-  // THIS IS NOT A FUNCTIONAL URL FOR VIEWING THE ACTUAL UPLOADED FILE.
-  // It represents where the file *might* be stored in a real system.
-  const placeholderUrl = `/uploads/placeholder-${Date.now()}-${encodeURIComponent(file.name)}`;
-  console.log(`[Placeholder] Generated placeholder URL: ${placeholderUrl}`);
-  return placeholderUrl;
-}
-// --- End Placeholder ---
-
-
-// Update Zod schema to expect 'file' when noticeType is not 'text'
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
-const ACCEPTED_PDF_TYPES = ["application/pdf"];
-const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
-
-
-const formDataSchema = z.object({
+// Define validation schema expecting imageUrl for file-based types
+const formSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
   priority: z.string().transform(Number).refine(val => val >= 1 && val <= 5, {
       message: "Priority must be between 1 and 5",
   }).default("3"),
-  // Allow content to be explicitly undefined or an empty string
-  content: z.string().optional().nullable().transform(val => val ?? ''), // Transform null/undefined to empty string
-  // Expect 'file' object from FormData which should be a single File instance
-  file: z.instanceof(File, { message: "File upload is required." })
-         .refine(file => file.size <= MAX_FILE_SIZE, `Max file size is 10MB.`)
-         .optional(),
-  fileName: z.string().optional(), // Original file name from form
+  // Allow content to be explicitly undefined or an empty string, required for 'text'
+  content: z.string().optional().nullable().transform(val => val ?? ''),
+  // Expect imageUrl for non-text types, optional because it's handled separately
+  imageUrl: z.string().url({ message: "Invalid URL format for image/PDF/video" }).optional().nullable(),
+  // Store original file name from the upload step
+  originalFileName: z.string().optional().nullable(),
 }).refine(data => {
-    // Require content (non-empty string) if type is text
+    // Require content if type is text
     if (data.noticeType === 'text') {
-        return data.content.trim().length > 0; // Check if the string is not just whitespace
+        return data.content.trim().length > 0;
     }
-    // Require file if type is not text
+    // Require imageUrl if type is not text
     if (data.noticeType !== 'text') {
-        return !!data.file; // Check if the File object exists
+        return !!data.imageUrl;
     }
     return true;
 }, {
-    message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
-    path: ["content", "file"], // Point error to relevant fields
-}).refine(data => {
-    // Validate file type based on noticeType only if file exists
-    if (data.file) {
-        const fileType = data.file.type;
-        if (data.noticeType === 'image' && !ACCEPTED_IMAGE_TYPES.includes(fileType)) {
-            return false;
-        }
-        if (data.noticeType === 'pdf' && !ACCEPTED_PDF_TYPES.includes(fileType)) {
-            return false;
-        }
-        if (data.noticeType === 'video' && !ACCEPTED_VIDEO_TYPES.includes(fileType)) {
-             return false;
-        }
-    }
-    return true;
-}, {
-    message: "Invalid file type selected for the chosen notice type.",
-    path: ["file"],
+    message: "Content is required for text notices, and a file URL is required for PDF, image, or video notices.",
+    // Point error to relevant fields depending on the type
+    path: ["content", "imageUrl"],
 });
 
 // ** MongoDB Setup **
@@ -113,74 +69,36 @@ async function closeDatabaseConnection(db: Db) {
     }
 }
 
-export async function addNotice(formData: FormData): Promise<{ success: boolean; error?: string }> {
+// The server action now takes the final data, including the uploaded file's URL
+export async function addNotice(
+    noticeData: z.infer<typeof formSchema>
+): Promise<{ success: boolean; error?: string }> {
   let db: Db | null = null;
   try {
-    // Extract data from FormData
-    const rawData = {
-        title: formData.get('title') as string,
-        noticeType: formData.get('noticeType') as 'text' | 'pdf' | 'image' | 'video',
-        priority: formData.get('priority') as string,
-        // Explicitly get content, which might be null if not sent from form
-        content: formData.get('content') as string | null,
-        file: formData.get('file') as File | null, // Get the file object
-        fileName: formData.get('fileName') as string | undefined,
-    };
-
-    // Prepare data for validation, ensuring file is only included if it's a valid File object
-    // Pass content directly (Zod schema will handle transformation)
-    const dataToValidate = {
-      ...rawData,
-      file: rawData.file && rawData.file instanceof File && rawData.file.size > 0 ? rawData.file : undefined,
-    };
-
-    console.log("[addNotice] Data being validated:", dataToValidate);
-
-    const validatedData = formDataSchema.safeParse(dataToValidate);
+     // Data is already validated and contains imageUrl if needed
+    const validatedData = formSchema.safeParse(noticeData);
 
     if (!validatedData.success) {
       console.error("[addNotice] Validation errors:", validatedData.error.format());
       const errorMessages = validatedData.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-      return { success: false, error: `Invalid form data. ${errorMessages}` };
+      return { success: false, error: `Invalid notice data. ${errorMessages}` };
     }
 
-    const { title, noticeType, priority, content, file: validatedFile, fileName } = validatedData.data;
-
-    let uploadedFileUrl = '';
-
-    // Handle file upload if it's not a text notice and a file was validated
-    if (noticeType !== 'text' && validatedFile) {
-        try {
-            uploadedFileUrl = await uploadFileAndGetUrl(validatedFile); // Use the refined placeholder
-            console.log(`[addNotice] Placeholder URL generated for ${validatedFile.name}: ${uploadedFileUrl}`);
-        } catch (uploadError: any) {
-             console.error("[addNotice] Placeholder file upload failed:", uploadError);
-             return { success: false, error: `Failed to simulate file upload: ${uploadError.message}` };
-        }
-    } else if (noticeType !== 'text' && !validatedFile) {
-         // This should be caught by Zod, but double-check
-         return { success: false, error: 'File is required for non-text notices.' };
-    }
+    const { title, noticeType, priority, content, imageUrl, originalFileName } = validatedData.data;
 
     // Construct the new notice object for the database
     const newNotice = {
       title,
-      // Store content only if it's explicitly a text notice
-      // content is already transformed to '' if null/undefined by Zod
       content: noticeType === 'text' ? content : '',
-      // Store the URL obtained from upload/placeholder if it's not a text notice
-      imageUrl: noticeType !== 'text' ? uploadedFileUrl : '', // This is the placeholder URL
-      priority, // Store the numeric priority
+      imageUrl: noticeType !== 'text' ? imageUrl : '', // Use the passed imageUrl
+      priority,
       createdBy: 'admin_interface', // Placeholder user
       date: new Date(),
-      // Store original file name only for file-based notices
-      originalFileName: noticeType !== 'text' ? (fileName || validatedFile?.name || '') : '',
-      // Explicitly store the intended content type based on the form selection
-      contentType: noticeType, // <--- Ensure this is set directly from the form's noticeType
+      originalFileName: noticeType !== 'text' ? (originalFileName || '') : '',
+      contentType: noticeType, // Set content type from form
     };
 
     console.log('[addNotice] Attempting to add new notice to DB:', newNotice);
-    console.log('[addNotice] Saving notice with imageUrl:', newNotice.imageUrl); // Log the URL being saved
 
     // ** MongoDB Integration **
     db = await connectToDatabase();

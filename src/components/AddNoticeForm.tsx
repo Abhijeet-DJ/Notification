@@ -1,8 +1,8 @@
 'use client';
 
-import * as React from 'react'; // Import React
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import * as React from 'react';
+import { useState, useRef } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import { addNotice } from '@/app/actions/addNotice'; // Server Action
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress"; // Import Progress component
 
 // Helper to check file size (e.g., max 10MB)
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -33,19 +34,15 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/web
 const ACCEPTED_PDF_TYPES = ["application/pdf"];
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
 
-// Updated schema for file uploads matching the backend action
-const noticeSchema = z.object({
+// Updated schema for the form itself (before upload)
+// 'file' is now optional in the base schema but required conditionally by refine
+const formSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
-  // Make content optional in the frontend schema as well
+  // Content is required only for text notices
   content: z.string().optional(),
-  // Use 'file' field for file input. Expect a FileList from the input.
-  file: z.instanceof(typeof window !== 'undefined' ? FileList : Object)
-    .refine(
-      (files) => !files || files.length === 0 || files?.[0]?.size <= MAX_FILE_SIZE, // Allow empty FileList for text notices
-      `Max file size is 10MB.`
-    )
-    .optional(), // Optional overall, but required conditionally
+  // File input is handled separately, but we need a field for validation trigger
+  file: z.instanceof(typeof window !== 'undefined' ? FileList : Object).optional(),
   priority: z.coerce // Use coerce to handle string from input type="number"
     .number({ invalid_type_error: "Priority must be a number" })
     .min(1, "Priority must be at least 1")
@@ -54,110 +51,187 @@ const noticeSchema = z.object({
 }).refine(data => {
     // Require content if type is text
     if (data.noticeType === 'text') {
-        // Content must exist and not be empty spaces
         return !!data.content?.trim();
     }
-    // Require file if type is not text
+    // Require file if type is not text (this refine checks if FileList exists)
     if (data.noticeType !== 'text') {
-        // File must exist in the FileList
         return !!data.file?.[0];
     }
-    // Should not happen if logic above is correct, but return true for text notices without file
     return true;
 }, {
     message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
-    path: ["content", "file"],
+    path: ["content", "file"], // Point to both fields
 }).refine(data => {
-    // Validate file type based on noticeType
-    if (data.file?.[0]) { // Check if file exists before accessing type
-      const fileType = data.file[0].type;
-      if (data.noticeType === 'image' && !ACCEPTED_IMAGE_TYPES.includes(fileType)) {
-          return false;
-      }
-      if (data.noticeType === 'pdf' && !ACCEPTED_PDF_TYPES.includes(fileType)) {
-          return false;
-      }
-      if (data.noticeType === 'video' && !ACCEPTED_VIDEO_TYPES.includes(fileType)) {
-          return false;
-      }
+    // Validate file properties if a file exists in the FileList
+    if (data.file?.[0]) {
+        const file = data.file[0];
+        // Check size
+        if (file.size > MAX_FILE_SIZE) {
+           form.setError("file", { message: `Max file size is 10MB. Yours is ${(file.size / (1024*1024)).toFixed(2)}MB` });
+           return false;
+        }
+        // Check type based on noticeType
+        const fileType = file.type;
+        if (data.noticeType === 'image' && !ACCEPTED_IMAGE_TYPES.includes(fileType)) {
+            form.setError("file", { message: `Invalid file type. Expected one of: ${ACCEPTED_IMAGE_TYPES.join(', ')}` });
+            return false;
+        }
+        if (data.noticeType === 'pdf' && !ACCEPTED_PDF_TYPES.includes(fileType)) {
+            form.setError("file", { message: `Invalid file type. Expected: ${ACCEPTED_PDF_TYPES.join(', ')}` });
+            return false;
+        }
+        if (data.noticeType === 'video' && !ACCEPTED_VIDEO_TYPES.includes(fileType)) {
+             form.setError("file", { message: `Invalid file type. Expected one of: ${ACCEPTED_VIDEO_TYPES.join(', ')}` });
+            return false;
+        }
     }
-    return true; // Pass if text notice or file type matches or no file provided yet
+    return true; // Pass if text notice or file validation passes or no file yet
 }, {
-    message: "Invalid file type selected for the chosen notice type.",
+    // This message might not be shown if specific errors are set using setError
+    message: "Invalid file size or type.",
     path: ["file"],
 });
 
+type NoticeFormData = z.infer<typeof formSchema>;
 
-type NoticeFormData = z.infer<typeof noticeSchema>;
+// Global form instance reference for refine function
+let form: any;
 
 export default function AddNoticeForm() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null); // State to hold the selected file name
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for the file input
 
-  const form = useForm<NoticeFormData>({
-    resolver: zodResolver(noticeSchema),
+  // Assign the form instance globally (needed for refine function's setError)
+  form = useForm<NoticeFormData>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
       noticeType: 'text',
-      content: '', // Default content to empty string
+      content: '',
       priority: 3,
       file: undefined,
     },
+     mode: "onChange", // Validate on change to catch file issues early
   });
 
   const noticeType = form.watch('noticeType');
-  const fileRef = form.register("file"); // Register file input
+
+  // Function to handle file upload
+  const handleFileUpload = async (file: File): Promise<string | null> => {
+      setIsUploading(true);
+      setUploadProgress(0);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+          const xhr = new XMLHttpRequest();
+
+          // Track progress
+          xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                  const percentComplete = Math.round((event.loaded / event.total) * 100);
+                  setUploadProgress(percentComplete);
+              }
+          };
+
+          // Handle completion
+          return await new Promise((resolve, reject) => {
+             xhr.onload = () => {
+                 setIsUploading(false);
+                 if (xhr.status >= 200 && xhr.status < 300) {
+                     try {
+                         const response = JSON.parse(xhr.responseText);
+                         if (response.success && response.url) {
+                             console.log("Upload successful, URL:", response.url);
+                             resolve(response.url);
+                         } else {
+                             console.error("Upload API reported failure:", response.error);
+                             reject(new Error(response.error || 'Upload failed: Server error'));
+                         }
+                     } catch (e) {
+                        console.error("Failed to parse upload response:", xhr.responseText, e);
+                        reject(new Error('Upload failed: Invalid server response'));
+                     }
+                 } else {
+                     console.error("Upload failed with status:", xhr.status, xhr.statusText);
+                     reject(new Error(`Upload failed: ${xhr.statusText || 'Server error'}`));
+                 }
+             };
+
+             // Handle errors
+             xhr.onerror = () => {
+                 setIsUploading(false);
+                 console.error("Upload failed: Network error or CORS issue.");
+                 reject(new Error('Upload failed: Network error'));
+             };
+
+             // Start the request
+             xhr.open('POST', '/api/upload-with-multer', true); // Use the new multer endpoint
+             xhr.send(formData);
+          });
+
+      } catch (error: any) {
+          setIsUploading(false);
+          console.error('File upload error:', error);
+          toast({
+              title: "Upload Failed",
+              description: error.message || "Could not upload the file.",
+              variant: "destructive",
+          });
+          return null;
+      }
+  };
 
   async function onSubmit(values: NoticeFormData) {
     setIsLoading(true);
     console.log('Form values submitting:', values);
 
-    const formData = new FormData();
-    formData.append('title', values.title);
-    formData.append('noticeType', values.noticeType);
-    formData.append('priority', String(values.priority)); // Send priority as string
+    let imageUrl: string | undefined | null = undefined;
+    let originalFileName: string | undefined | null = undefined;
 
-    // Send content only if it's a text notice and has a value
-    if (values.noticeType === 'text' && values.content) {
-      formData.append('content', values.content);
-    } else if (values.noticeType !== 'text' && values.file?.[0]) {
-        // Append the file itself from the FileList
-        formData.append('file', values.file[0]);
-        formData.append('fileName', values.file[0].name); // Send original filename
-    } else if (values.noticeType === 'text' && !values.content?.trim()) {
-        // This case should be caught by Zod validation, but added as a fallback
-        toast({
-            title: "Missing Content",
-            description: `Please enter content for the text notice.`,
-            variant: "destructive",
-        });
-        setIsLoading(false);
-        return; // Stop submission
-    } else if (values.noticeType !== 'text' && !values.file?.[0]) {
-       // This case should be caught by Zod validation, but added as a fallback
-        toast({
-            title: "Missing File",
-            description: `Please upload a file for the ${values.noticeType} notice.`,
-            variant: "destructive",
-        });
-        setIsLoading(false);
-        return; // Stop submission
+    // Handle file upload if necessary
+    if (values.noticeType !== 'text' && values.file?.[0]) {
+        const fileToUpload = values.file[0];
+        originalFileName = fileToUpload.name;
+        imageUrl = await handleFileUpload(fileToUpload);
+
+        if (!imageUrl) {
+            // Error occurred during upload, toast shown in handleFileUpload
+            setIsLoading(false);
+            return; // Stop submission
+        }
     }
-    // If it's not a text notice, 'content' field is implicitly not sent or handled by backend as empty
+
+    // Prepare data for the server action
+    const noticeDataForAction = {
+      title: values.title,
+      noticeType: values.noticeType,
+      priority: values.priority,
+      content: values.noticeType === 'text' ? values.content || '' : '', // Send content only for text
+      imageUrl: imageUrl, // Send the URL obtained from upload
+      originalFileName: originalFileName,
+    };
 
     try {
-      console.log('Sending FormData to server action:', Object.fromEntries(formData.entries()));
-      // Call the server action
-      const result = await addNotice(formData);
+      console.log('Sending data to server action:', noticeDataForAction);
+      // Call the server action with the final notice data (including URL)
+      const result = await addNotice(noticeDataForAction);
 
       if (result.success) {
         toast({
           title: "Notice Added",
           description: "The new notice has been successfully added.",
         });
-        form.reset(); // Reset form after successful submission
+        form.reset(); // Reset form fields
         setSelectedFileName(null); // Clear selected file name display
+        if (fileInputRef.current) { // Clear the actual file input
+            fileInputRef.current.value = '';
+        }
+        setUploadProgress(0); // Reset progress bar
       } else {
         toast({
           title: "Error Adding Notice",
@@ -166,27 +240,32 @@ export default function AddNoticeForm() {
         });
       }
     } catch (error) {
-      console.error('Error submitting form:', error);
+      console.error('Error submitting notice to action:', error);
       toast({
         title: "Submission Error",
-        description: "An unexpected error occurred while submitting the form.",
+        description: "An unexpected error occurred while saving the notice.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+      setIsUploading(false); // Ensure uploading state is reset
     }
   }
 
    // Log form errors for debugging
    React.useEffect(() => {
-     if (form.formState.errors && Object.keys(form.formState.errors).length > 0) {
-       console.log("Form validation errors:", form.formState.errors);
-     }
-   }, [form.formState.errors]);
+     const subscription = form.watch((value, { name, type }) => {
+       if (form.formState.errors && Object.keys(form.formState.errors).length > 0) {
+          console.log("Form validation errors:", form.formState.errors);
+       }
+     });
+     return () => subscription.unsubscribe();
+   }, [form.watch, form.formState.errors]);
+
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6"> {/* Increased spacing */}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="title"
@@ -209,10 +288,13 @@ export default function AddNoticeForm() {
               <FormLabel>Notice Type</FormLabel>
               <Select onValueChange={(value) => {
                 field.onChange(value);
-                // Reset other fields when type changes
-                form.setValue('file', undefined); // Clear file input
-                form.setValue('content', ''); // Clear content
-                setSelectedFileName(null); // Clear file name display
+                // Reset dependent fields when type changes
+                form.setValue('file', undefined, { shouldValidate: true });
+                form.setValue('content', '', { shouldValidate: true });
+                setSelectedFileName(null);
+                 if (fileInputRef.current) {
+                    fileInputRef.current.value = ''; // Clear file input visually
+                 }
               }} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -241,10 +323,9 @@ export default function AddNoticeForm() {
                 <FormControl>
                   <Textarea
                     placeholder="Enter notice content"
-                    className="min-h-[100px]" // Slightly larger text area
+                    className="min-h-[100px]"
                     {...field}
-                    // Ensure value is handled correctly, default to empty string
-                    value={field.value ?? ''}
+                    value={field.value ?? ''} // Handle potential undefined value
                   />
                 </FormControl>
                  <FormDescription>
@@ -255,11 +336,11 @@ export default function AddNoticeForm() {
             )}
           />
         ) : (
-           // Field for File input for PDF, Image, Video
+           // Field for File input (only UI part, upload handled in onSubmit)
           <FormField
             control={form.control}
-            name="file"
-            render={({ field: { onChange, ...restField } }) => (
+            name="file" // Bind to the 'file' field in the schema for validation trigger
+            render={({ field: { onChange, onBlur, name, ref } }) => ( // Use RHF's onChange
               <FormItem>
                 <FormLabel>
                    Upload {noticeType === 'pdf' ? 'PDF' : noticeType === 'image' ? 'Image' : 'Video'}
@@ -272,22 +353,34 @@ export default function AddNoticeForm() {
                        noticeType === 'image' ? ACCEPTED_IMAGE_TYPES.join(',') :
                        noticeType === 'video' ? ACCEPTED_VIDEO_TYPES.join(',') : ''
                      }
-                     {...fileRef}
+                     ref={fileInputRef} // Use the ref here
+                     name={name}
+                     onBlur={onBlur}
                      onChange={(e) => {
-                         onChange(e.target.files); // Pass the FileList to react-hook-form
-                         if (e.target.files && e.target.files[0]) {
-                           setSelectedFileName(e.target.files[0].name); // Update state with selected file name
+                         const files = e.target.files;
+                         onChange(files); // Update RHF's state with FileList
+                         if (files && files[0]) {
+                           setSelectedFileName(files[0].name);
+                           // Manually trigger validation for the file field
+                          // form.trigger("file"); // Re-validate on file selection
                          } else {
-                           setSelectedFileName(null); // Clear if no file selected
+                           setSelectedFileName(null);
                          }
                       }}
-                     {...restField} // Spread the rest of the field props
+                      disabled={isUploading || isLoading} // Disable while uploading/submitting
                    />
                 </FormControl>
                  <FormDescription>
                    {selectedFileName ? `Selected file: ${selectedFileName}` : `Upload the ${noticeType} file. Max size: 10MB.`}
                  </FormDescription>
-                <FormMessage />
+                 {/* Display upload progress */}
+                 {isUploading && (
+                   <div className="mt-2">
+                     <Progress value={uploadProgress} className="w-full" />
+                     <p className="text-sm text-muted-foreground mt-1">{uploadProgress}% uploaded</p>
+                   </div>
+                 )}
+                <FormMessage /> {/* Display validation errors */}
               </FormItem>
             )}
           />
@@ -301,11 +394,15 @@ export default function AddNoticeForm() {
              <FormItem>
                <FormLabel>Priority (1-5, 1 is highest)</FormLabel>
                <FormControl>
-                 {/* Ensure type="number" for better UX, but Zod handles coercion */}
                  <Input type="number" min="1" max="5" placeholder="3" {...field}
                   // Ensure value is handled correctly for number input
                   value={field.value ?? ''}
-                  onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  // Use onChange to handle potential empty string and convert to number
+                  onChange={e => {
+                      const value = e.target.value;
+                      // Allow empty input or convert to number
+                      field.onChange(value === '' ? undefined : Number(value));
+                  }}
                  />
                </FormControl>
                <FormDescription>Lower number means higher priority.</FormDescription>
@@ -314,8 +411,8 @@ export default function AddNoticeForm() {
            )}
          />
 
-        <Button type="submit" disabled={isLoading} className="w-full sm:w-auto"> {/* Make button full width on small screens */}
-          {isLoading ? 'Adding Notice...' : 'Add Notice'}
+        <Button type="submit" disabled={isLoading || isUploading} className="w-full sm:w-auto">
+          {isLoading ? 'Saving Notice...' : isUploading ? 'Uploading...' : 'Add Notice'}
         </Button>
       </form>
     </Form>
