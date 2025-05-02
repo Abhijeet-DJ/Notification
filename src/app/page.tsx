@@ -1,9 +1,8 @@
-
-
 'use client';
 
 import type { Metadata } from 'next';
 import { useEffect, useState, useRef } from 'react';
+import Image from 'next/image'; // Import next/image
 import { CollegeNotice, getCollegeNotices, getBulletinAnnouncements } from '@/services/college-notices';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -22,8 +21,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const isVideoNotices = title === "Video Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  // Remove intervalRef as video swapping is now driven by onEnded
-  // const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null); // Used for PDF scrolling now
 
   const totalItems = notices.length;
   // Items per page logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
@@ -32,40 +30,67 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const textAnimationThreshold = 3;
 
   // Calculate totalPages or determine if animation should occur
-  const totalPages = (isVideoNotices && totalItems > 0) ? Math.ceil(totalItems / itemsPerPage)
-                    : (isPdfNotices && totalItems > 0) ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
-                    : 0; // Text and Image use belt logic, no traditional pagination needed
+  const totalPdfPages = (isPdfNotices && totalItems > 0) ? Math.ceil(totalItems / 2) : 0; // Number of pairs for PDFs
+  const totalVideoPages = (isVideoNotices && totalItems > 0) ? Math.ceil(totalItems / itemsPerPage) : 0;
 
   // Should the section animate?
-  const shouldAnimatePdf = isPdfNotices && totalPages > 1; // Animate PDFs if more than 1 pair
+  const shouldAnimatePdf = isPdfNotices && totalPdfPages > 1; // Animate PDFs if more than 1 pair
   const shouldAnimateText = isTextNotices && totalItems > textAnimationThreshold; // Animate text if more than threshold items
   const shouldAnimateImages = isImageNotices && totalItems > 0; // Always animate images if any exist
 
-
-  // Remove startItemChangeAnimation as interval is no longer used for videos
-  // const startItemChangeAnimation = () => { ... };
-
-
-  // Effect to manage animations (now only relevant for non-video belt animations if needed)
+  // Effect to manage animations
   useEffect(() => {
     console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered.`);
-    // No interval to start for videos anymore
 
-    // Cleanup function (might not be needed if no intervals are set)
-    return () => {
-      console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up (if any intervals were set).`);
-      // if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
+    const stopInterval = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        console.log(`[DEBUG][NoticeBlock][${title}] Cleared interval.`);
+      }
     };
-     // Re-run effect if notices change or type changes impacting animation
-     // Removed dependencies related to video interval
-  }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages]);
 
+    const startVideoInterval = () => {
+      if (isVideoNotices && totalItems > 1 && !intervalRef.current) {
+         // Interval logic removed for videos, handled by onEnded
+      }
+    };
+
+    const startPdfScroll = () => {
+        if (isPdfNotices && shouldAnimatePdf) {
+           // PDF scrolling animation is handled by CSS, no interval needed here
+        }
+    };
+
+    const startTextScroll = () => {
+         if (isTextNotices && shouldAnimateText) {
+             // Text scrolling animation is handled by CSS, no interval needed here
+         }
+    };
+
+     const startImageScroll = () => {
+         if (isImageNotices && shouldAnimateImages) {
+             // Image scrolling animation is handled by CSS, no interval needed here
+         }
+     };
+
+
+    stopInterval(); // Clear existing interval before starting a new one
+    startVideoInterval();
+    startPdfScroll();
+    startTextScroll();
+    startImageScroll();
+
+
+    // Cleanup function
+    return () => {
+      stopInterval();
+    };
+  }, [notices, title, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalItems, totalPdfPages, totalVideoPages, shouldAnimatePdf, shouldAnimateText, shouldAnimateImages, currentPage]); // Added dependencies
 
   // Get indices for pagination/pairing
   const startIndex = isVideoNotices ? currentPage * itemsPerPage : 0;
-  // Slice the notices based on current page and items per page for paginated types (Video only now)
-  // For Text, PDF, Images, use all notices for the belt animation
-   const currentNotices = isVideoNotices
+  const currentNotices = isVideoNotices
      ? notices.slice(startIndex, startIndex + itemsPerPage)
      : notices;
 
@@ -76,7 +101,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
    const handleVideoEnded = () => {
      if (isVideoNotices && totalItems > 1) { // Only swap if there's more than one video
        console.log(`[DEBUG][NoticeBlock][Video Notices] Video ended, swapping to next.`);
-       setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
+       setCurrentPage((prevPage) => (prevPage + 1) % totalVideoPages);
      } else if (isVideoNotices && totalItems === 1) {
          // If only one video, restart it
          const videoElement = containerRef.current?.querySelector('video');
@@ -159,8 +184,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                              <div key={`dup-${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2" aria-hidden="true">
                                  <img
                                      src={notice.imageUrl}
-                                     alt=""
+                                     alt="" // Alt text empty for decorative duplicate
                                      className="h-full w-auto object-contain rounded-md"
+                                     onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading duplicate Image:`, notice.imageUrl, e)}
                                  />
                              </div>
                          ))}
@@ -175,7 +201,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                         style={{ animationPlayState: shouldAnimatePdf ? 'running' : 'paused' }}
                      >
                         {/* Render PDF pairs */}
-                        {Array.from({ length: totalPages }).map((_, pageIndex) => {
+                        {Array.from({ length: totalPdfPages }).map((_, pageIndex) => {
                             const pairStartIndex = pageIndex * 2;
                             const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
                             return (
@@ -197,7 +223,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                             );
                         })}
                         {/* Duplicate PDF pairs for seamless looping, only if animating */}
-                        {shouldAnimatePdf && Array.from({ length: totalPages }).map((_, pageIndex) => {
+                        {shouldAnimatePdf && Array.from({ length: totalPdfPages }).map((_, pageIndex) => {
                              const pairStartIndex = pageIndex * 2;
                              const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
                              return (
@@ -206,9 +232,10 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                                          <div key={`dup-${notice._id}`} className="w-1/2 h-full px-1"> {/* Half width, horizontal padding only */}
                                              <iframe
                                                  src={`${notice.imageUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                                                 title=""
+                                                 title="" // Empty title for duplicate
                                                  className="w-full h-full border-0 rounded-md"
                                                  style={{ scrollbarWidth: 'none' }}
+                                                 onError={(e) => console.error(`[DEBUG][NoticeBlock][PDF Notices] Error loading duplicate PDF:`, notice.imageUrl, e)}
                                              />
                                          </div>
                                      ))}
@@ -377,8 +404,17 @@ export default function Home() {
            </Link>
          </Button>
 
-        {/* Title */}
-        <h1 className="text-3xl font-bold text-primary">College Notifier</h1>
+        {/* Title and Logo */}
+        <div className="flex items-center justify-center space-x-3"> {/* Centered title and logo */}
+           <Image
+             src="/logo.png" // Assuming logo.png is in the /public folder
+             alt="College Logo"
+             width={40} // Adjust width as needed
+             height={40} // Adjust height as needed
+             className="object-contain" // Maintain aspect ratio
+           />
+           <h1 className="text-3xl font-bold text-primary">College Notifier</h1>
+        </div>
 
         {/* Right side controls: Date/Time and Theme Toggle */}
         <div className="flex items-center space-x-4">
@@ -403,12 +439,12 @@ export default function Home() {
 
       {/* Moving Bulletin - Place outside main, flex-shrink-0 prevents it shrinking */}
        <ClientOnly>
-         <MovingBulletin announcements={bulletinAnnouncements} />
+         {bulletinAnnouncements.length > 0 && <MovingBulletin announcements={bulletinAnnouncements} />}
        </ClientOnly>
     </div>
   );
 }
 
 
-
     
+
