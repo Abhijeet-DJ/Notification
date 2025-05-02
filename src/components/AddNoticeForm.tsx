@@ -66,25 +66,31 @@ const formSchema = z.object({
     // Validate file properties if a file exists in the FileList
     if (data.noticeType !== 'text' && data.file?.[0]) {
         const file = data.file[0];
+        console.log('[Schema Refine] Validating file:', file.name, file.size, file.type); // Debug log for file validation
         // Check size
         if (file.size > MAX_FILE_SIZE) {
+           console.error(`[Schema Refine] File too large: ${file.size}`);
            form.setError("file", { message: `Max file size is 10MB. Yours is ${(file.size / (1024*1024)).toFixed(2)}MB` });
            return false;
         }
         // Check type based on noticeType
         const fileType = file.type;
         if (data.noticeType === 'image' && !ACCEPTED_IMAGE_TYPES.includes(fileType)) {
+            console.error(`[Schema Refine] Invalid image type: ${fileType}`);
             form.setError("file", { message: `Invalid file type. Expected one of: ${ACCEPTED_IMAGE_TYPES.join(', ')}` });
             return false;
         }
         if (data.noticeType === 'pdf' && !ACCEPTED_PDF_TYPES.includes(fileType)) {
+            console.error(`[Schema Refine] Invalid PDF type: ${fileType}`);
             form.setError("file", { message: `Invalid file type. Expected: ${ACCEPTED_PDF_TYPES.join(', ')}` });
             return false;
         }
         if (data.noticeType === 'video' && !ACCEPTED_VIDEO_TYPES.includes(fileType)) {
+             console.error(`[Schema Refine] Invalid video type: ${fileType}`);
              form.setError("file", { message: `Invalid file type. Expected one of: ${ACCEPTED_VIDEO_TYPES.join(', ')}` });
             return false;
         }
+         console.log('[Schema Refine] File validation passed.'); // Log success
     }
     return true; // Pass if text notice or file validation passes or no file yet
 }, {
@@ -123,6 +129,7 @@ export default function AddNoticeForm() {
 
   // Function to handle file upload
   const handleFileUpload = async (file: File): Promise<{ url: string; originalFilename: string } | null> => {
+      console.log('[handleFileUpload] Starting upload for file:', file.name); // Log start of upload
       setIsUploading(true);
       setUploadProgress(0);
       const formData = new FormData();
@@ -143,28 +150,29 @@ export default function AddNoticeForm() {
           return await new Promise((resolve, reject) => {
              xhr.onload = () => {
                  setIsUploading(false);
+                 console.log('[handleFileUpload] Upload finished. Status:', xhr.status, 'Response:', xhr.responseText); // Log completion details
                  if (xhr.status >= 200 && xhr.status < 300) {
                      try {
                          const response = JSON.parse(xhr.responseText);
                          if (response.success && response.url) {
-                             console.log("Upload successful:", response);
+                             console.log("[handleFileUpload] Upload successful:", response);
                              resolve({ url: response.url, originalFilename: response.originalFilename || file.name });
                          } else {
-                             console.error("Upload API reported failure:", response.error);
-                             reject(new Error(response.error || 'Upload failed: Server error'));
+                             console.error("[handleFileUpload] Upload API reported failure:", response.error);
+                             reject(new Error(response.error || 'Upload failed: Server error reported by API'));
                          }
                      } catch (e) {
-                        console.error("Failed to parse upload response:", xhr.responseText, e);
-                        reject(new Error('Upload failed: Invalid server response'));
+                        console.error("[handleFileUpload] Failed to parse upload response:", xhr.responseText, e);
+                        reject(new Error('Upload failed: Invalid server response format'));
                      }
                  } else {
-                     console.error("Upload failed with status:", xhr.status, xhr.statusText);
+                     console.error("[handleFileUpload] Upload failed with status:", xhr.status, xhr.statusText);
                       try {
                          // Try to parse error message from server response
                          const response = JSON.parse(xhr.responseText);
-                         reject(new Error(`Upload failed: ${response.error || xhr.statusText || 'Server error'}`));
+                         reject(new Error(`Upload failed: ${response.error || xhr.statusText || `Server error (status ${xhr.status})`}`));
                        } catch (e) {
-                         reject(new Error(`Upload failed: ${xhr.statusText || 'Server error'}`));
+                         reject(new Error(`Upload failed: ${xhr.statusText || `Server error (status ${xhr.status})`}`));
                        }
                  }
              };
@@ -172,18 +180,19 @@ export default function AddNoticeForm() {
              // Handle errors
              xhr.onerror = () => {
                  setIsUploading(false);
-                 console.error("Upload failed: Network error or CORS issue.");
-                 reject(new Error('Upload failed: Network error'));
+                 console.error("[handleFileUpload] Upload failed: Network error or CORS issue.");
+                 reject(new Error('Upload failed: Network error or Cross-Origin restriction'));
              };
 
              // Start the request
-             xhr.open('POST', '/api/upload-with-multer', true); // Use the new multer endpoint
+             console.log('[handleFileUpload] Sending POST request to /api/upload-with-multer');
+             xhr.open('POST', '/api/upload-with-multer', true); // Use the correct endpoint
              xhr.send(formData);
           });
 
       } catch (error: any) {
           setIsUploading(false);
-          console.error('File upload error:', error);
+          console.error('[handleFileUpload] File upload error:', error);
           toast({
               title: "Upload Failed",
               description: error.message || "Could not upload the file.",
@@ -195,7 +204,7 @@ export default function AddNoticeForm() {
 
   async function onSubmit(values: NoticeFormData) {
     setIsLoading(true);
-    console.log('Form values submitting:', values);
+    console.log('[onSubmit] Form values submitting:', values);
 
     let imageUrl: string | undefined | null = undefined;
     let originalFileName: string | undefined | null = undefined;
@@ -203,15 +212,24 @@ export default function AddNoticeForm() {
     // Handle file upload if necessary
     if (values.noticeType !== 'text' && values.file?.[0]) {
         const fileToUpload = values.file[0];
+        console.log('[onSubmit] Attempting to upload file:', fileToUpload.name);
         const uploadResult = await handleFileUpload(fileToUpload);
 
         if (!uploadResult) {
             // Error occurred during upload, toast shown in handleFileUpload
+            console.error('[onSubmit] File upload failed, stopping submission.');
             setIsLoading(false);
             return; // Stop submission
         }
         imageUrl = uploadResult.url;
         originalFileName = uploadResult.originalFilename; // Use filename from upload result
+         console.log('[onSubmit] File upload successful. URL:', imageUrl, 'Original Filename:', originalFileName);
+    } else if (values.noticeType !== 'text') {
+        console.warn('[onSubmit] Notice type requires a file, but no file was provided or found.');
+        // Consider adding a toast message here if this is an unexpected state
+        // toast({ title: "Missing File", description: `A file is required for ${values.noticeType} notices.`, variant: "destructive" });
+        // setIsLoading(false); // Maybe stop submission if file is strictly required but missing
+        // return;
     }
 
     // Prepare data for the server action
@@ -226,11 +244,12 @@ export default function AddNoticeForm() {
     };
 
     try {
-      console.log('Sending data to server action:', noticeDataForAction);
+      console.log('[onSubmit] Sending data to server action addNotice:', noticeDataForAction);
       // Call the server action with the final notice data (including URL)
       const result = await addNotice(noticeDataForAction);
 
       if (result.success) {
+        console.log('[onSubmit] Server action addNotice successful.');
         toast({
           title: "Notice Added",
           description: "The new notice has been successfully added.",
@@ -242,17 +261,18 @@ export default function AddNoticeForm() {
         }
         setUploadProgress(0); // Reset progress bar
       } else {
+         console.error('[onSubmit] Server action addNotice failed:', result.error);
         toast({
           title: "Error Adding Notice",
           description: result.error || "Failed to add notice. Please check the details.",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error('Error submitting notice to action:', error);
+    } catch (error: any) {
+      console.error('[onSubmit] Error submitting notice to action:', error);
       toast({
         title: "Submission Error",
-        description: "An unexpected error occurred while saving the notice.",
+        description: error.message || "An unexpected error occurred while saving the notice.",
         variant: "destructive",
       });
     } finally {
@@ -265,8 +285,9 @@ export default function AddNoticeForm() {
    React.useEffect(() => {
      const subscription = form.watch((value, { name, type }) => {
        // console.log("Form value changed:", name, value); // Optional: log all changes
-       if (form.formState.errors && Object.keys(form.formState.errors).length > 0) {
-          console.log("Current Form validation errors:", form.formState.errors);
+       const errors = form.formState.errors;
+       if (errors && Object.keys(errors).length > 0) {
+          console.warn("[AddNoticeForm] Current Form validation errors:", errors);
        }
      });
      return () => subscription.unsubscribe();
@@ -297,6 +318,7 @@ export default function AddNoticeForm() {
             <FormItem>
               <FormLabel>Notice Type</FormLabel>
               <Select onValueChange={(value) => {
+                 console.log(`[Notice Type Change] Selected type: ${value}`); // Log type change
                 field.onChange(value);
                 // Reset dependent fields when type changes
                 form.resetField('file', { defaultValue: undefined });
@@ -306,6 +328,7 @@ export default function AddNoticeForm() {
                     fileInputRef.current.value = ''; // Clear file input visually
                  }
                  // Re-validate relevant fields after type change
+                  console.log('[Notice Type Change] Triggering validation for content and file.');
                  form.trigger(['content', 'file']);
               }} defaultValue={field.value}>
                 <FormControl>
@@ -370,14 +393,17 @@ export default function AddNoticeForm() {
                      onBlur={onBlur}
                      onChange={(e) => {
                          const files = e.target.files;
+                         console.log('[File Input Change] Files selected:', files); // Log file selection
                          onChange(files); // Update RHF's state with FileList
                          if (files && files[0]) {
                            setSelectedFileName(files[0].name);
                            // Manually trigger validation for the file field after selection
+                           console.log('[File Input Change] Triggering file validation.');
                            form.trigger("file");
                          } else {
                            setSelectedFileName(null);
                            // If no file is selected, trigger validation too
+                           console.log('[File Input Change] No file selected, triggering file validation.');
                            form.trigger("file");
                          }
                       }}

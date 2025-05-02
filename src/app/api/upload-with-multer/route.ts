@@ -21,14 +21,15 @@ const ensureUploadDirExists = async () => {
       try {
         await fs.mkdir(uploadDir, { recursive: true });
         console.log(`[ensureUploadDirExists] Created upload directory: ${uploadDir}`);
-      } catch (mkdirError) {
+      } catch (mkdirError: any) { // Catch specific mkdir error
         console.error(`[ensureUploadDirExists] Failed to create upload directory: ${uploadDir}`, mkdirError);
-        throw new Error(`Server configuration error: Could not create upload directory. Details: ${mkdirError}`); // Throw specific error
+        // Provide more context in the error message
+        throw new Error(`Server configuration error: Could not create upload directory at ${uploadDir}. Check permissions. Details: ${mkdirError.message}`);
       }
     } else {
       // Other error accessing directory (e.g., permissions)
       console.error(`[ensureUploadDirExists] Error accessing upload directory: ${uploadDir}`, error);
-      throw new Error(`Server configuration error: Could not access upload directory. Details: ${error.message}`);
+      throw new Error(`Server configuration error: Could not access upload directory at ${uploadDir}. Check permissions. Details: ${error.message}`);
     }
   }
 };
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   console.log('[upload-api] Received POST request.');
   try {
     // 1. Ensure upload directory exists before processing request
-    await ensureUploadDirExists();
+    await ensureUploadDirExists(); // This will now throw a more specific error if it fails
 
     // 2. Get FormData from the request
     const formData = await req.formData();
@@ -69,7 +70,9 @@ export async function POST(req: NextRequest) {
     // 5. Generate a unique filename (similar to multer's default behavior)
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const extension = path.extname(file.name);
-    const filename = `file-${uniqueSuffix}${extension}`; // Simplified fieldname
+    // Sanitize filename slightly (replace spaces, etc.) - more robust sanitization might be needed
+    const baseName = path.basename(file.name, extension).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${baseName}-${uniqueSuffix}${extension}`;
     const filepath = path.join(uploadDir, filename);
 
     console.log(`[upload-api] Attempting to save file: ${filename} to ${filepath}`);
@@ -79,6 +82,10 @@ export async function POST(req: NextRequest) {
       // Convert the File stream to a Node.js readable stream if available
       const readableStream = file.stream(); // This is a ReadableStream (Web API)
 
+      if (!readableStream) {
+        throw new Error('Could not get readable stream from file.');
+      }
+
       // Create a Node.js writable stream to the destination file
       const writableStream = createWriteStream(filepath); // Use Node.js createWriteStream
 
@@ -86,7 +93,8 @@ export async function POST(req: NextRequest) {
       console.log('[upload-api] Starting file stream pipeline...');
 
        // Important: Use pipeline from 'stream/promises' for async handling
-      await pipeline(readableStream as any, writableStream); // Cast readableStream if necessary
+       // Ensure the web stream is correctly adapted if needed (often works directly)
+      await pipeline(readableStream as any, writableStream); // Cast readableStream if necessary, potential type mismatch
 
       console.log(`[upload-api] File saved successfully via pipeline: ${filename}`);
     } catch (saveError: any) {
@@ -96,6 +104,7 @@ export async function POST(req: NextRequest) {
         await fs.unlink(filepath);
         console.log(`[upload-api] Cleaned up partially written file: ${filename}`);
       } catch (cleanupError) {
+        // Log cleanup error but don't mask the original save error
         console.error(`[upload-api] Error cleaning up file ${filename} after save failure:`, cleanupError);
       }
        // Return a more specific error
@@ -106,29 +115,41 @@ export async function POST(req: NextRequest) {
     const fileUrl = `/uploads/${filename}`; // Public access path relative to the 'public' directory
 
     console.log(`[upload-api] File uploaded successfully. URL: ${fileUrl}, Original Filename: ${file.name}`);
-    return NextResponse.json({ success: true, url: fileUrl, originalFilename: file.name }); // Return original name too
+    // Return original name too, useful for the action saving to DB
+    return NextResponse.json({ success: true, url: fileUrl, originalFilename: file.name });
 
   } catch (error: any) {
     // Catch any unexpected errors during the process
     console.error('[upload-api] Unexpected error during POST handler:', error);
-    // Log the full error object for more details
-    console.error('[upload-api] Full Error Object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    // Log the full error object for more details if it's not a standard Error
+    if (!(error instanceof Error)) {
+       console.error('[upload-api] Full Error Object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    }
 
     let errorMessage = `Upload failed due to an unexpected server error.`;
-     let statusCode = 500;
+    let statusCode = 500;
 
-     if (error.message?.includes('Could not create upload directory')) {
-         errorMessage = `Server setup error: Cannot create storage directory. Permissions might be missing. Details: ${error.message}`;
+    // Check for specific configuration errors thrown earlier
+    if (error.message?.includes('Could not create upload directory')) {
+         errorMessage = error.message; // Use the detailed message from ensureUploadDirExists
          statusCode = 500; // Configuration error
      } else if (error.message?.includes('Could not access upload directory')) {
-         errorMessage = `Server setup error: Cannot access storage directory. Permissions might be missing. Details: ${error.message}`;
+         errorMessage = error.message; // Use the detailed message from ensureUploadDirExists
          statusCode = 500; // Configuration error
-     } else if (error.code === 'ENOENT') {
-        errorMessage = `Server error: A required file or directory was not found. Details: ${error.message}`;
+     } else if (error.code === 'ENOENT') { // General file system error
+        errorMessage = `Server error: A required file or directory was not found during upload process. Details: ${error.message}`;
         statusCode = 500;
+     } else if (error instanceof Error) { // Use message from standard errors
+        errorMessage = error.message;
      }
      // Add more specific error checks if needed based on logs
 
     return NextResponse.json({ success: false, error: errorMessage }, { status: statusCode });
   }
 }
+
+// Add a GET handler for testing or simple checks if needed (optional)
+// export async function GET(req: NextRequest) {
+//   return NextResponse.json({ message: 'Upload API is active. Use POST to upload files.' });
+// }
+

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -19,35 +20,41 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null); // Ref to hold interval ID
 
-   // --- Debugging Log ---
+   // Debugging Log: Initial render and received notices
    // console.log(`[DEBUG][NoticeBlock] Rendering: Title="${title}", Notices Count=${notices.length}`);
-   // if (title === "Image Notices" && notices.length > 0) {
-   //   console.log("[DEBUG][NoticeBlock] Image Notices Data:", notices);
+   // if (notices.length > 0) {
+   //   console.log(`[DEBUG][NoticeBlock][${title}] Received Notices Data:`, notices);
    // }
-   // --- End Debugging Log ---
-
 
   // Function to start the animation interval
   const startAnimation = () => {
     // Clear any existing interval before starting a new one
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
+       // console.log(`[DEBUG][NoticeBlock][${title}] Cleared previous interval.`);
     }
 
     const totalItems = notices.length;
-    if (totalItems === 0) return; // Don't start if no notices
+    if (totalItems === 0) {
+       // console.log(`[DEBUG][NoticeBlock][${title}] No notices, animation not started.`);
+      return; // Don't start if no notices
+    }
 
     const itemsPerPage = isTextNotices ? 5 : 1;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     // Increased animation duration for slower scrolling/transitions
-    const animationDuration = isTextNotices ? 10000 : 10000; // 10 seconds
+    const animationDuration = 10000; // 10 seconds
+
+     console.log(`[DEBUG][NoticeBlock][${title}] Starting animation: TotalItems=${totalItems}, ItemsPerPage=${itemsPerPage}, TotalPages=${totalPages}, Duration=${animationDuration}ms`);
 
     intervalRef.current = setInterval(() => {
       setCurrentPage((prevPage) => {
         const nextPage = (prevPage + 1) % totalPages;
+         // console.log(`[DEBUG][NoticeBlock][${title}] Interval tick: prevPage=${prevPage}, nextPage=${nextPage}`);
 
         // Scroll logic for text notices (smooth scroll)
         if (isTextNotices && containerRef.current) {
+           // console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text notices down.`);
            // Scroll down effect
            containerRef.current.scrollTo({
              top: containerRef.current.scrollHeight, // Scroll to bottom first
@@ -56,6 +63,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
            // After a delay, scroll back to top smoothly to show next batch
            setTimeout(() => {
              if (containerRef.current) {
+                // console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text notices back to top.`);
                // Reset scroll smoothly to top *before* the next interval tick
                containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
              }
@@ -69,10 +77,12 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
   // Effect to start/restart animation when notices change
   useEffect(() => {
+    // console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered due to notices change. Starting animation.`);
     startAnimation();
     // Cleanup function to clear interval on component unmount or notices change
     return () => {
       if (intervalRef.current) {
+        // console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up interval.`);
         clearInterval(intervalRef.current);
       }
     };
@@ -84,24 +94,19 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   // Slice the notices based on current page and items per page
    const currentNotices = notices.slice(startIndex, startIndex + itemsPerPage);
 
-   // --- Debugging Log ---
-   // console.log(`[DEBUG][NoticeBlock] Current Notices for "${title}":`, currentNotices);
-   // if (title === "Image Notices" && currentNotices.length > 0) {
-   //   console.log("[DEBUG][NoticeBlock] Current Image Notice URL:", currentNotices[0]?.imageUrl);
+   // Debugging Log: Current notices being displayed
+   // console.log(`[DEBUG][NoticeBlock][${title}] Current Page=${currentPage}, StartIndex=${startIndex}, Displaying Notices:`, currentNotices);
+
+
+  const hasNotices = currentNotices?.length > 0; // Check currentNotices specifically for display
+
+   // Debug log for specific types if needed
+   // if (title === "PDF Notices") {
+   //   console.log("[DEBUG][NoticeBlock] PDF Notices - currentNotices:", currentNotices);
    // }
-   // --- End Debugging Log ---
-
-
-  const hasNotices = notices?.length > 0;
-
-   // Debug log to see what currentNotices contains for PDF block
-   if (title === "PDF Notices") {
-     // console.log("PDF Notices - currentNotices:", currentNotices);
-   }
-   // Debug log for Image Notices
-   if (title === "Image Notices") {
-      console.log("[DEBUG][NoticeBlock] Image Notices Data:", currentNotices);
-   }
+   // if (title === "Image Notices" && currentNotices.length > 0) {
+   //    console.log("[DEBUG][NoticeBlock] Image Notice URL to render:", currentNotices[0]?.imageUrl);
+   // }
 
 
   return (
@@ -146,7 +151,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                            src={currentNotices[0].imageUrl}
                            title={currentNotices[0].title}
                            className="w-full h-full border-0 rounded-md"
-                           onError={(e) => console.error("[DEBUG][NoticeBlock] Error loading PDF:", currentNotices[0].imageUrl, e)} // Add error handling
+                           onError={(e) => console.error(`[DEBUG][NoticeBlock][${title}] Error loading PDF:`, currentNotices[0].imageUrl, e)} // Add error handling
                            // sandbox="allow-scripts allow-same-origin" // Use cautiously if needed
                          />
                       </div>
@@ -154,7 +159,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                      // Adjusted image container and image classes
                      (() => {
                         // Log the image URL right before rendering the img tag
-                        console.log(`[DEBUG][NoticeBlock] Rendering Image Notice: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
+                        console.log(`[DEBUG][NoticeBlock][Image Notices] Rendering Image: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
                         return null; // This IIFE doesn't render anything
                       })(),
                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
@@ -164,7 +169,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          alt={currentNotices[0].title}
                          className="max-w-full max-h-full object-contain rounded-md" // Ensure image fits without cropping
                          // Add error handling for the image tag itself
-                         onError={(e) => console.error("[DEBUG][NoticeBlock] Error loading Image in <img> tag:", currentNotices[0].imageUrl, e)}
+                         onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading Image in <img> tag:`, currentNotices[0].imageUrl, e)}
                        />
                       </div>
                    ) : currentNotices[0].contentType === 'video' ? (
@@ -174,7 +179,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          src={currentNotices[0].imageUrl}
                          controls
                          className="max-w-full max-h-full rounded-md" // Ensure video fits
-                         onError={(e) => console.error("[DEBUG][NoticeBlock] Error loading Video:", currentNotices[0].imageUrl, e)} // Add error handling
+                         onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)} // Add error handling
                        />
                       </div>
                    ) : null}
@@ -197,6 +202,7 @@ const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
 
    useEffect(() => {
      // This effect runs only on the client after hydration
+     // console.log(`[DEBUG][MovingBulletin] Theme changed to: ${theme}. Setting text color.`);
      setTextColorClass(theme === 'dark' ? 'text-[hsl(var(--bulletin-text-dark))]' : 'text-[hsl(var(--bulletin-text-light))]');
    }, [theme]); // Update when theme changes
 
@@ -204,7 +210,10 @@ const MovingBulletin = ({ announcements }: { announcements: string[] }) => {
    // The useEffect will apply the correct class after mount
    if (!textColorClass) {
       // Optional: Render a placeholder or default state before hydration completes
+      // console.log(`[DEBUG][MovingBulletin] Initial render or before hydration, no text color class set.`);
      // return <div className="relative w-full h-10 bg-accent py-2 overflow-hidden flex-shrink-0 animate-pulse"></div>;
+   } else {
+      // console.log(`[DEBUG][MovingBulletin] Rendering with textColorClass: ${textColorClass}`);
    }
 
   return (
@@ -243,7 +252,11 @@ const ThemeToggle = () => {
       variant="outline"
       size="icon"
       className="rounded-full bg-secondary shadow-md transition-colors duration-300 hover:bg-accent hover:text-accent-foreground"
-      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      onClick={() => {
+         const newTheme = theme === 'light' ? 'dark' : 'light';
+         console.log(`[DEBUG][ThemeToggle] Toggling theme to: ${newTheme}`);
+         setTheme(newTheme);
+      }}
       aria-label="Toggle dark mode"
     >
       {theme === 'light' ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
@@ -258,15 +271,17 @@ export default function Home() {
 
   useEffect(() => {
     const loadData = async () => {
+       console.log("[DEBUG][Home] Fetching data...");
       try {
         const noticesData = await getCollegeNotices();
-        console.log("[DEBUG][Home] Fetched notices:", noticesData); // Log fetched data
-        setNotices(noticesData);
+        console.log("[DEBUG][Home] Fetched notices raw data:", noticesData); // Log fetched data BEFORE setting state
+        setNotices(noticesData); // Update state
 
         const announcements = await getBulletinAnnouncements();
+         console.log("[DEBUG][Home] Fetched bulletin announcements:", announcements);
         setBulletinAnnouncements(announcements);
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('[DEBUG][Home] Error loading data:', error);
       }
     };
 
@@ -274,22 +289,42 @@ export default function Home() {
 
      // Optional: Refresh data periodically (e.g., every 5 minutes)
      const intervalId = setInterval(loadData, 5 * 60 * 1000); // 5 minutes
+      console.log("[DEBUG][Home] Set up data refresh interval (5 min).");
 
-     return () => clearInterval(intervalId); // Clean up interval on unmount
+     return () => {
+        console.log("[DEBUG][Home] Cleaning up data refresh interval.");
+       clearInterval(intervalId); // Clean up interval on unmount
+     }
   }, []);
 
 
   // Filter notices based on the contentType
-   const textNotices = notices.filter(notice => notice.contentType === 'text');
-   const pdfNotices = notices.filter(notice => notice.contentType === 'pdf');
-   const imageNotices = notices.filter(notice => notice.contentType === 'image');
-   const videoNotices = notices.filter(notice => notice.contentType === 'video');
+   // Log BEFORE filtering
+   console.log("[DEBUG][Home] notices state before filtering:", notices);
 
-   // Log filtered notices for debugging
-    console.log("[DEBUG][Home] Filtered Text Notices:", textNotices);
-    console.log("[DEBUG][Home] Filtered PDF Notices:", pdfNotices);
-    console.log("[DEBUG][Home] Filtered Image Notices:", imageNotices);
-    console.log("[DEBUG][Home] Filtered Video Notices:", videoNotices);
+   const textNotices = notices.filter(notice => {
+       const isText = notice.contentType === 'text';
+       // if (isText) console.log("[DEBUG][Home] Filtering Text Notice:", notice.title, notice._id);
+       return isText;
+   });
+   const pdfNotices = notices.filter(notice => {
+       const isPdf = notice.contentType === 'pdf';
+       // if (isPdf) console.log("[DEBUG][Home] Filtering PDF Notice:", notice.title, notice._id);
+       return isPdf;
+   });
+   const imageNotices = notices.filter(notice => {
+       const isImage = notice.contentType === 'image';
+       // if (isImage) console.log("[DEBUG][Home] Filtering Image Notice:", notice.title, notice._id);
+       return isImage;
+   });
+   const videoNotices = notices.filter(notice => {
+      const isVideo = notice.contentType === 'video';
+      // if (isVideo) console.log("[DEBUG][Home] Filtering Video Notice:", notice.title, notice._id);
+      return isVideo;
+   });
+
+   // Log AFTER filtering
+    console.log(`[DEBUG][Home] Filtered Notices - Text: ${textNotices.length}, PDF: ${pdfNotices.length}, Image: ${imageNotices.length}, Video: ${videoNotices.length}`);
 
 
   return (
@@ -306,9 +341,11 @@ export default function Home() {
 
         <h1 className="text-3xl font-bold text-primary">College Notifier</h1>
         <div className="flex items-center space-x-4">
+          {/* DateTimeDisplay wrapped in ClientOnly to prevent hydration issues */}
           <ClientOnly>
              <DateTimeDisplay />
            </ClientOnly>
+          {/* ThemeToggle wrapped in ClientOnly */}
           <ClientOnly>
             <ThemeToggle />
           </ClientOnly>
@@ -318,6 +355,7 @@ export default function Home() {
        {/* Main Content Area: flex-grow allows it to take remaining space */}
       <main className="container mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-2 grid-rows-2 gap-4 flex-grow overflow-hidden">
         {/* Each NoticeBlock should fill its grid cell */}
+        {/* Pass the correctly filtered arrays to each NoticeBlock */}
         <NoticeBlock title="Text Notices" notices={textNotices} />
         <NoticeBlock title="PDF Notices" notices={pdfNotices} />
         <NoticeBlock title="Image Notices" notices={imageNotices} />
@@ -325,6 +363,7 @@ export default function Home() {
       </main>
 
       {/* Footer (Bulletin): flex-shrink-0 prevents it from shrinking */}
+       {/* MovingBulletin wrapped in ClientOnly */}
        <ClientOnly>
          <MovingBulletin announcements={bulletinAnnouncements} />
        </ClientOnly>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -7,15 +8,17 @@ import { MongoClient, Db } from 'mongodb';
 // --- Placeholder for actual file upload service removed ---
 
 // Define validation schema expecting imageUrl for file-based types
-const formSchema = z.object({
+const formDataSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
-  priority: z.string().transform(Number).refine(val => val >= 1 && val <= 5, {
-      message: "Priority must be between 1 and 5",
-  }).default("3"),
+  priority: z.coerce // Use coerce for better handling of number conversion
+    .number({ invalid_type_error: "Priority must be a number" })
+    .min(1, "Priority must be at least 1")
+    .max(5, "Priority must be at most 5")
+    .default(3), // Default priority
   // Allow content to be explicitly undefined or an empty string, required for 'text'
-  content: z.string().optional().nullable().transform(val => val ?? ''),
-  // Expect imageUrl for non-text types, optional because it's handled separately
+  content: z.string().optional().nullable().transform(val => val ?? ''), // Ensure it's always a string
+  // Expect imageUrl for non-text types, optional because it's handled separately after upload
   imageUrl: z.string().url({ message: "Invalid URL format for image/PDF/video" }).optional().nullable(),
   // Store original file name from the upload step
   originalFileName: z.string().optional().nullable(),
@@ -26,6 +29,7 @@ const formSchema = z.object({
     }
     // Require imageUrl if type is not text
     if (data.noticeType !== 'text') {
+        // Use !! to check for truthiness (non-empty string)
         return !!data.imageUrl;
     }
     return true;
@@ -41,94 +45,125 @@ const dbName = process.env.MONGODB_DB || "Notices"; // Use default DB name if no
 
 async function connectToDatabase(): Promise<Db> {
   if (!uri) {
-    throw new Error('MONGODB_URI is not defined in .env or default string');
+    // More critical error logging for configuration issues
+    console.error('[connectToDatabase] FATAL ERROR: MONGODB_URI is not defined in .env or default string');
+    throw new Error('Database configuration error: MONGODB_URI is missing.');
   }
   if (!dbName) {
-    throw new Error('MONGODB_DB is not defined in .env or default string');
+     console.error('[connectToDatabase] FATAL ERROR: MONGODB_DB is not defined in .env or default string');
+    throw new Error('Database configuration error: MONGODB_DB is missing.');
   }
 
   const client = new MongoClient(uri);
   try {
     await client.connect();
-    console.log("Connected to MongoDB for addNotice");
+    console.log("[connectToDatabase] Connected successfully to MongoDB for addNotice.");
     const db = client.db(dbName);
-    (db as any)._client = client; // Store client instance on the Db object to close it later
+    // Store client instance on the Db object to close it later using a non-enumerable property
+     Object.defineProperty(db, '_client', { value: client, writable: false, enumerable: false, configurable: true });
     return db;
   } catch (error) {
-    console.error("Failed to connect to MongoDB", error);
-    await client.close(); // Close client if connection failed
-    throw error;
+    console.error("[connectToDatabase] Failed to connect to MongoDB", error);
+    await client.close(); // Ensure client is closed if connection failed
+    throw error; // Re-throw the error to be caught by the caller
   }
 }
 
 async function closeDatabaseConnection(db: Db) {
+    // Access the client stored on the Db object
     const client = (db as any)._client;
-    if (client) {
-        await client.close();
-        console.log("MongoDB connection closed for addNotice.");
+    if (client && typeof client.close === 'function') {
+        try {
+            await client.close();
+            console.log("[closeDatabaseConnection] MongoDB connection closed successfully for addNotice.");
+        } catch (closeError) {
+            console.error("[closeDatabaseConnection] Error closing MongoDB connection:", closeError);
+        }
+    } else {
+        // console.warn("[closeDatabaseConnection] No active MongoDB client found on Db object to close.");
     }
 }
 
 // The server action now takes the final data, including the uploaded file's URL
 export async function addNotice(
-    noticeData: z.infer<typeof formSchema>
+    rawData: unknown // Accept raw data first for validation
 ): Promise<{ success: boolean; error?: string }> {
+  console.log('[addNotice] Received raw data:', rawData); // Log raw input
   let db: Db | null = null;
   try {
-     // Data is already validated and contains imageUrl if needed
-    const validatedData = formSchema.safeParse(noticeData);
+     // Validate the incoming raw data using the Zod schema
+    const validatedData = formDataSchema.safeParse(rawData);
 
     if (!validatedData.success) {
-      console.error("[addNotice] Validation errors:", validatedData.error.format());
-      const errorMessages = validatedData.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      // Log detailed validation errors
+      console.error("[addNotice] Validation failed:", validatedData.error.format());
+      // Construct a user-friendly error message from Zod errors
+      const errorMessages = validatedData.error.errors.map(e => `${e.path.join('.') || 'notice'}: ${e.message}`).join('; ');
       return { success: false, error: `Invalid notice data. ${errorMessages}` };
     }
 
+    // Destructure the validated data
     const { title, noticeType, priority, content, imageUrl, originalFileName } = validatedData.data;
+     console.log('[addNotice] Data validated successfully:', validatedData.data);
 
     // Construct the new notice object for the database
+    // Ensure `contentType` is explicitly saved based on `noticeType`
     const newNotice = {
       title,
+      // Store content ONLY if it's a text notice
       content: noticeType === 'text' ? content : '',
-      imageUrl: noticeType !== 'text' ? imageUrl : '', // Use the passed imageUrl
+      // Store imageUrl ONLY if it's NOT a text notice
+      imageUrl: noticeType !== 'text' ? (imageUrl || '') : '', // Ensure it's a string or empty string
       priority,
-      createdBy: 'admin_interface', // Placeholder user
-      date: new Date(),
-      originalFileName: noticeType !== 'text' ? (originalFileName || '') : '',
-      contentType: noticeType, // Set content type from form
+      createdBy: 'admin_interface', // Placeholder user, replace with actual user info if available
+      date: new Date(), // Use current server date
+      // Store originalFileName ONLY if it's NOT a text notice
+      originalFileName: noticeType !== 'text' ? (originalFileName || '') : '', // Ensure it's a string or empty string
+      contentType: noticeType, // Explicitly save the notice type
     };
 
-    console.log('[addNotice] Attempting to add new notice to DB:', newNotice);
+    console.log('[addNotice] Attempting to insert new notice into DB:', newNotice);
 
     // ** MongoDB Integration **
-    db = await connectToDatabase();
-    const collection = db.collection('notices');
+    db = await connectToDatabase(); // Connect to the database
+    const collection = db.collection('notices'); // Get the 'notices' collection
 
+    // Insert the new notice document into the collection
     const result = await collection.insertOne(newNotice);
 
+    // Check if the insertion was acknowledged by MongoDB
     if (!result.acknowledged || !result.insertedId) {
-      console.error('[addNotice] Failed to insert notice into MongoDB');
+      console.error('[addNotice] Failed to insert notice into MongoDB. Result:', result);
       return { success: false, error: 'Failed to save notice to the database.' };
     }
 
-    console.log('[addNotice] Notice added to MongoDB with id:', result.insertedId);
+    console.log('[addNotice] Notice added successfully to MongoDB with id:', result.insertedId);
 
-    revalidatePath('/'); // Clear the cache for the home page
+    // Revalidate the cache for the homepage to show the new notice immediately
+    revalidatePath('/');
+    console.log('[addNotice] Revalidated path /');
 
+    // Return success
     return { success: true };
 
   } catch (error: any) {
+    // Catch any unexpected errors during the process
     console.error('[addNotice] Error in addNotice server action:', error);
     let errorMessage = 'An unexpected error occurred while adding the notice.';
-     if (error instanceof z.ZodError) {
+
+    // Provide more specific error messages based on error type
+     if (error instanceof z.ZodError) { // Should be caught by safeParse, but good fallback
        errorMessage = `Validation Error: ${error.errors.map(e => e.message).join(', ')}`;
-     } else if (error.message?.includes('MONGODB_URI')) {
-        errorMessage = 'Database connection failed. Please check configuration.';
-    } else if (error.name === 'MongoNetworkError') {
-        errorMessage = 'Could not connect to the database.';
+     } else if (error.message?.includes('Database configuration error')) {
+        errorMessage = error.message; // Use the specific config error
+    } else if (error.name === 'MongoNetworkError' || error.message?.includes('connect')) {
+        errorMessage = 'Could not connect to the database. Please check network or connection string.';
     }
+    // Add more specific MongoDB error checks if needed (e.g., MongoWriteConcernError)
+
     return { success: false, error: errorMessage };
   } finally {
+      // Ensure the database connection is always closed
       if (db) {
          await closeDatabaseConnection(db);
       }
