@@ -39,6 +39,9 @@ body {
     /* Bulletin text color HSL variables */
     --bulletin-text-light-hsl: 0 0% 3.9%; /* Black */
     --bulletin-text-dark-hsl: 0 0% 98%; /* White */
+    --bulletin-text-light: hsl(var(--bulletin-text-light-hsl));
+    --bulletin-text-dark: hsl(var(--bulletin-text-dark-hsl));
+
   }
 
   .dark {
@@ -105,7 +108,7 @@ body {
 
 
 @layer utilities {
-  /* Increased specificity for marquee animation */
+  /* Increased specificity for horizontal marquee animation */
   .animate-marquee {
     /* Adjust duration based on content width if needed, 50s is a starting point */
     animation: marquee 50s linear infinite; /* Increased duration for smoother loop */
@@ -123,7 +126,7 @@ body {
      }
    }
 
-   /* Animation for image belt */
+   /* Animation for horizontal image belt */
   .animate-marquee-images {
      /* Adjust duration based on the number/width of images. */
      animation: marquee-images 10s linear infinite; /* Changed duration to 10s */
@@ -141,5 +144,24 @@ body {
         transform: translateX(-50%);
       }
     }
+
+    /* Animation for vertical PDF belt */
+    .animate-marquee-vertical {
+      /* Duration needs to be adjusted based on content height and desired speed */
+      animation: marquee-vertical 20s linear infinite; /* Start with 20s, adjust as needed */
+      display: flex; /* Use flexbox for vertical layout */
+      flex-direction: column; /* Vertical arrangement */
+      will-change: transform; /* Optimize animation performance */
+    }
+
+     @keyframes marquee-vertical {
+       0% {
+         transform: translateY(0%); /* Start with the first set visible */
+       }
+       100% {
+         /* Move exactly one height of the original content to loop smoothly */
+         transform: translateY(-50%);
+       }
+     }
 }
 
