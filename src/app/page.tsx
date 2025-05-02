@@ -40,7 +40,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
     const itemsPerPage = isTextNotices ? 5 : 1;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     // Increased animation duration for slower scrolling/transitions
-    const animationDuration = isTextNotices ? 15000 : 10000; // e.g., 15 seconds for text, 10 seconds for files
+    const animationDuration = isTextNotices ? 10000 : 10000; // e.g., 10 seconds for text, 10 seconds for files
 
     intervalRef.current = setInterval(() => {
       setCurrentPage((prevPage) => {
@@ -312,7 +312,9 @@ export default function Home() {
       </main>
 
       {/* Footer (Bulletin): flex-shrink-0 prevents it from shrinking */}
-      <MovingBulletin announcements={bulletinAnnouncements} />
+       <ClientOnly>
+         <MovingBulletin announcements={bulletinAnnouncements} />
+       </ClientOnly>
     </div>
   );
 }
