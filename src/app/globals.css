@@ -145,7 +145,7 @@ body {
       }
     }
 
-    /* Animation for vertical PDF belt */
+    /* Animation for vertical PDF/Text belt */
     .animate-marquee-vertical {
       /* Duration needs to be adjusted based on content height and desired speed */
       animation: marquee-vertical 20s linear infinite; /* Start with 20s, adjust as needed */
@@ -164,4 +164,3 @@ body {
        }
      }
 }
-

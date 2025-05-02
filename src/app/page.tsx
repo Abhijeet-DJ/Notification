@@ -21,96 +21,46 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const isVideoNotices = title === "Video Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const textScrollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for text scrolling animation
-  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (PDF Pairs/Text Pages) - Excludes Video
+  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (Video only)
 
   const totalItems = notices.length;
-  // Adjusted itemsPerPage logic: Text: 5, PDF/Image: All (handled by belt), Video: 1
-  const itemsPerPage = isTextNotices ? 5 : isVideoNotices ? 1 : totalItems;
-  // Calculate totalPages only for paginated types (Text, Video, PDF pairs)
-  const totalPages = (isTextNotices || isVideoNotices) && totalItems > 0
-    ? Math.ceil(totalItems / itemsPerPage)
-    : (isPdfNotices && totalItems > 0)
-      ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
-      : 0;
-   // Should the PDF section animate? Only if more than one pair exists.
-   const shouldPdfAnimate = isPdfNotices && totalPages > 1;
+  // Adjusted itemsPerPage logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
+  const itemsPerPage = isVideoNotices ? 1 : totalItems;
+  // Calculate totalPages for different types
+  const totalPages = (isVideoNotices && totalItems > 0) ? Math.ceil(totalItems / itemsPerPage)
+                    : (isPdfNotices && totalItems > 0) ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
+                    : (isTextNotices && totalItems > 0) ? 1 // Text uses belt, conceptually 1 'page' of all items
+                    : 0;
+
+  // Should the section animate? Only if more than one page/pair exists or enough text items.
+  const shouldAnimate = (isPdfNotices && totalPages > 1)
+                       || (isTextNotices && totalItems > 5) // Only animate text if more than 5 items
+                       || isImageNotices; // Always animate images if any
 
 
-  // Function to start the animation interval for changing items/pages (Text Pages/PDF Pairs)
-  // **Excludes Video**
+  // Function to start the animation interval for changing items/pages (Only Video)
   const startItemChangeAnimation = () => {
     if (itemChangeIntervalRef.current) {
       clearInterval(itemChangeIntervalRef.current);
     }
 
-    // Don't start if it's image notices, video notices, or only one page/pair or no notices for other types
-    if (isImageNotices || isVideoNotices || totalPages <= 1) {
-      return;
+    // Only start for Video notices with more than one item
+    if (!isVideoNotices || totalPages <= 1) {
+        return;
     }
 
-    // Determine animation duration based on type
-    let animationDuration: number;
-    if (isPdfNotices) {
-      animationDuration = 20000; // 20 seconds for PDF pairs
-    }
-    else { // Includes Text pagination
-      animationDuration = 10000; // 10 seconds for text pages
-    }
+    const animationDuration = 10000; // 10 seconds per video (before it swaps onEnded) - adjust if needed
 
-    console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation: TotalPages/Pairs=${totalPages}, Duration=${animationDuration}ms`);
+    console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation (Video): TotalPages=${totalPages}, Duration=${animationDuration}ms`);
 
     itemChangeIntervalRef.current = setInterval(() => {
       setCurrentPage((prevPage) => {
         const nextPage = (prevPage + 1) % totalPages;
-         console.log(`[DEBUG][NoticeBlock][${title}] Item change interval tick: prevPage=${prevPage}, nextPage=${nextPage}`);
+         console.log(`[DEBUG][NoticeBlock][${title}] Video change interval tick: prevPage=${prevPage}, nextPage=${nextPage}`);
         return nextPage;
       });
-    }, animationDuration);
+    }, animationDuration); // Note: video duration might vary, handleVideoEnded is primary driver
   };
-
-   // Function to start the text scrolling animation
-   const startTextScrollAnimation = () => {
-      if (!isTextNotices || totalItems === 0) return;
-
-      if (textScrollIntervalRef.current) {
-         clearInterval(textScrollIntervalRef.current);
-      }
-
-      const scrollDuration = 10000; // 10 seconds for text scroll cycle
-      console.log(`[DEBUG][NoticeBlock][${title}] Starting text scroll animation: Duration=${scrollDuration}ms`);
-
-      textScrollIntervalRef.current = setInterval(() => {
-         if (containerRef.current) {
-            const container = containerRef.current;
-            const scrollAmount = container.scrollHeight - container.clientHeight;
-
-             console.log(`[DEBUG][NoticeBlock][${title}] Text scroll interval tick.`);
-
-            if (scrollAmount > 0) {
-                console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text down.`);
-               container.scrollTo({
-                  top: container.scrollHeight,
-                  behavior: 'smooth',
-               });
-
-               // Wait for the scroll down to likely finish before scrolling up
-               setTimeout(() => {
-                  if (containerRef.current) {
-                      console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text back to top.`);
-                     // Use instantaneous scroll to reset for the next smooth scroll down
-                     containerRef.current.scrollTo({
-                        top: 0,
-                        behavior: 'auto', // Change to 'auto' for instant reset
-                     });
-                  }
-               }, scrollDuration - 500); // Scroll up slightly before the interval restarts
-            } else {
-                console.log(`[DEBUG][NoticeBlock][${title}] Text content fits, no scroll needed.`);
-            }
-         }
-      }, scrollDuration); // Interval duration remains the same
-   };
 
 
   // Effect to start/restart animations when notices change or type changes
@@ -118,30 +68,26 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
     console.log(`[DEBUG][NoticeBlock][${title}] useEffect triggered. Starting relevant animations.`);
     // Stop all previous intervals first
     if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
-    if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
 
     // Start appropriate animations
-    startItemChangeAnimation(); // Handles changing items for text pages/PDF pairs (NOT Video)
-    startTextScrollAnimation(); // Handles scrolling within the text block
+    startItemChangeAnimation(); // Handles changing video items
+    // Belt animations for Text/PDF/Image are handled by CSS class
 
     // Cleanup function to clear intervals on component unmount or before effect runs again
     return () => {
       console.log(`[DEBUG][NoticeBlock][${title}] Cleaning up intervals.`);
       if (itemChangeIntervalRef.current) clearInterval(itemChangeIntervalRef.current);
-      if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
     };
      // Re-run effect if notices change or dimensions/type impacting animation change
   }, [notices, isTextNotices, isPdfNotices, isImageNotices, isVideoNotices, totalPages]);
 
 
   // Get indices for pagination/pairing
-  const startIndex = (isTextNotices || isVideoNotices) ? currentPage * itemsPerPage
-                   : isPdfNotices ? currentPage * 2 // 2 PDFs per page/pair
-                   : 0;
-  // Slice the notices based on current page and items per page for paginated types (Text, Video, PDF Pairs)
-  // For images, use all notices for the belt animation
-   const currentNotices = (isTextNotices || isVideoNotices || isPdfNotices)
-     ? notices.slice(startIndex, startIndex + (isPdfNotices ? 2 : itemsPerPage)) // Get 2 for PDF, others as before
+  const startIndex = isVideoNotices ? currentPage * itemsPerPage : 0;
+  // Slice the notices based on current page and items per page for paginated types (Video only now)
+  // For Text, PDF, Images, use all notices for the belt animation
+   const currentNotices = isVideoNotices
+     ? notices.slice(startIndex, startIndex + itemsPerPage)
      : notices;
 
 
@@ -172,28 +118,47 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
           <CardTitle className="text-lg font-semibold text-accent-color">{title}</CardTitle>
         </CardHeader>
       )}
-      {/* Adjust CardContent padding: Remove padding for image/video belt, adjust PDF */}
+      {/* Adjust CardContent padding: Remove padding for image/video/pdf belt, keep for text belt */}
       <CardContent
-          className={`flex-grow overflow-hidden ${isImageNotices || isVideoNotices ? 'p-0' : isPdfNotices ? 'p-0' : 'p-4'} min-h-0`}
-          ref={containerRef} // Ref still used for text scrolling and video handling
+          className={`flex-grow overflow-hidden ${isImageNotices || isVideoNotices || isPdfNotices || isTextNotices ? 'p-0' : 'p-4'} min-h-0`}
+          ref={containerRef} // Ref still used for video handling
       >
          {hasNotices ? (
            isTextNotices ? (
-             <ul className="h-full overflow-y-hidden"> {/* Prevent default scrollbar */}
-               {currentNotices.map((notice) => (
-                 <li key={notice._id} className="py-2 border-b last:border-b-0">
-                   <div className="flex justify-between items-center">
-                     <div>
-                       <p className="font-medium">{notice.title}</p>
-                       <p className="text-sm">{notice.content}</p>
-                       <p className="text-xs text-muted-foreground">
-                         {new Date(notice.date).toISOString().split('T')[0]}
-                       </p>
-                     </div>
-                   </div>
-                  </li>
-               ))}
-             </ul>
+             // Text Belt Logic (Vertical)
+             <div className="h-full w-full overflow-hidden">
+               <div
+                  className={`flex flex-col h-full ${shouldAnimate ? 'animate-marquee-vertical' : ''}`}
+                  style={{ animationPlayState: shouldAnimate ? 'running' : 'paused' }}
+                >
+                  {/* Render all text items */}
+                  <div className="flex-shrink-0 w-full px-4 py-2"> {/* Added padding for spacing */}
+                      {notices.map((notice) => (
+                         <div key={notice._id} className="py-2 border-b last:border-b-0">
+                           <p className="font-medium">{notice.title}</p>
+                           <p className="text-sm">{notice.content}</p>
+                           <p className="text-xs text-muted-foreground">
+                             {new Date(notice.date).toISOString().split('T')[0]}
+                           </p>
+                         </div>
+                       ))}
+                  </div>
+                   {/* Duplicate text items for seamless looping, only if animating */}
+                  {shouldAnimate && (
+                    <div className="flex-shrink-0 w-full px-4 py-2" aria-hidden="true"> {/* Added padding */}
+                        {notices.map((notice) => (
+                           <div key={`dup-${notice._id}`} className="py-2 border-b last:border-b-0">
+                              <p className="font-medium">{notice.title}</p>
+                              <p className="text-sm">{notice.content}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(notice.date).toISOString().split('T')[0]}
+                              </p>
+                           </div>
+                         ))}
+                    </div>
+                  )}
+               </div>
+            </div>
              ) : isImageNotices ? (
                 // Image Belt Logic (Horizontal)
                  <div className="h-full w-full overflow-hidden">
@@ -226,8 +191,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                  <div className="h-full w-full overflow-hidden">
                    {/* Apply animation class and style conditionally */}
                     <div
-                        className={`flex flex-col h-full ${shouldPdfAnimate ? 'animate-marquee-vertical' : ''}`}
-                        style={{ animationPlayState: shouldPdfAnimate ? 'running' : 'paused' }}
+                        className={`flex flex-col h-full ${shouldAnimate ? 'animate-marquee-vertical' : ''}`}
+                        style={{ animationPlayState: shouldAnimate ? 'running' : 'paused' }}
                      >
                         {/* Render PDF pairs */}
                         {Array.from({ length: totalPages }).map((_, pageIndex) => {
@@ -252,7 +217,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                             );
                         })}
                         {/* Duplicate PDF pairs for seamless looping, only if animating */}
-                        {shouldPdfAnimate && Array.from({ length: totalPages }).map((_, pageIndex) => {
+                        {shouldAnimate && Array.from({ length: totalPages }).map((_, pageIndex) => {
                              const pairStartIndex = pageIndex * 2;
                              const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
                              return (
@@ -292,7 +257,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          key={currentNotices[0].imageUrl} // Use URL as key to force remount on change if needed
                          src={currentNotices[0].imageUrl}
                          controls
-                         autoPlay
+                         autoPlay // Added autoPlay attribute
                          // muted // Keep unmuted as requested
                          // Make video take full width/height within its container, maintain aspect ratio
                          className="w-full h-full object-contain rounded-md"
