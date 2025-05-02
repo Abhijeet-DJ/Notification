@@ -21,8 +21,8 @@ export interface CollegeNotice {
 
 
 // ** MongoDB Setup **
-const uri = process.env.MONGODB_URI;
-const dbName = process.env.MONGODB_DB || "Notices"; // Use default if not set
+const uri = process.env.MONGODB_URI || "mongodb+srv://ionode:ionode@ionode.qgqbadm.mongodb.net/Notices?retryWrites=true&w=majority&appName=ionode"; // Use default connection string if not set
+const dbName = process.env.MONGODB_DB || "Notices"; // Use default DB name if not set
 
 async function connectToDatabase(): Promise<Db> {
   if (!uri) {
@@ -82,9 +82,16 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
            isoDate = new Date().toISOString(); // Default to now if invalid
       }
 
-      // Determine contentType - prioritize imageUrl for file types
+      // --- Content Type Determination Logic ---
+      const validTypes = ['text', 'pdf', 'image', 'video'];
       let determinedContentType: 'text' | 'pdf' | 'image' | 'video' = 'text'; // Default to text
-      if (item.imageUrl) {
+
+      // 1. Prioritize the contentType saved in the database if it's valid
+      if (item.contentType && validTypes.includes(item.contentType)) {
+          determinedContentType = item.contentType;
+      }
+      // 2. If DB contentType is missing or invalid, infer from imageUrl
+      else if (item.imageUrl) {
           const url = item.imageUrl.toLowerCase();
           if (url.endsWith('.pdf')) {
               determinedContentType = 'pdf';
@@ -92,47 +99,50 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
               determinedContentType = 'image';
           } else if (url.match(/\.(mp4|webm|mov|ogg)$/)) { // Added common video types
               determinedContentType = 'video';
+          } else if (item.content && typeof item.content === 'string' && item.content.trim()) {
+            // Fallback to text if URL doesn't match and content exists
+            determinedContentType = 'text';
           }
       }
-      // Fallback to text if no matching imageUrl and content exists
-      // Or if the item explicitly has contentType 'text' saved (from form)
-      else if ( (item.content && typeof item.content === 'string' && item.content.trim()) || item.contentType === 'text') {
+      // 3. If no imageUrl, and content exists, it's text
+      else if (item.content && typeof item.content === 'string' && item.content.trim()) {
           determinedContentType = 'text';
       }
-
-      // Use the explicitly saved contentType from the DB if it exists and is valid, overriding inference if needed
-      const validTypes = ['text', 'pdf', 'image', 'video'];
-      const dbContentType = item.contentType && validTypes.includes(item.contentType) ? item.contentType : determinedContentType;
-
-      // If it's supposed to be a file type but imageUrl is missing, log a warning, but keep the intended type for filtering
-      if (dbContentType !== 'text' && !item.imageUrl) {
-          console.warn(`Notice "${item.title}" is type '${dbContentType}' but lacks an imageUrl.`);
+      // 4. Final fallback (should be rare if data is saved correctly)
+      else {
+          determinedContentType = 'text'; // Default if nothing else matches
       }
-      // Log if text type lacks content
-      if (dbContentType === 'text' && !(item.content && typeof item.content === 'string' && item.content.trim())) {
+      // --- End Content Type Determination ---
+
+      // Logging for debugging
+      console.log(`Notice: "${item.title}", DB Type: ${item.contentType}, Inferred Type: ${determinedContentType}, URL: ${item.imageUrl}, Content Exists: ${!!item.content}`);
+
+      // If it's supposed to be a file type but imageUrl is missing, log a warning
+      if (determinedContentType !== 'text' && !item.imageUrl) {
+          console.warn(`Notice "${item.title}" is type '${determinedContentType}' but lacks an imageUrl.`);
+      }
+      // Log if text type lacks content but isn't supposed to be a file type
+      if (determinedContentType === 'text' && !(item.content && typeof item.content === 'string' && item.content.trim())) {
           console.warn(`Notice "${item.title}" is type 'text' but lacks content.`);
       }
-
-      console.log(`Notice: ${item.title}, DB Type: ${item.contentType}, Final Type: ${dbContentType}, URL: ${item.imageUrl}`);
 
       return {
         _id: item._id ? item._id.toString() : `generated_${Math.random()}`,
         title: item.title || 'Untitled Notice',
-        // Store content only if it's explicitly a text notice (based on final type)
-        content: dbContentType === 'text' ? (item.content || '') : '',
-        imageUrl: item.imageUrl || '', // Keep imageUrl even if type is text (might be a link)
+        // Store content only if it's explicitly a text notice (based on FINAL determined type)
+        content: determinedContentType === 'text' ? (item.content || '') : '',
+        // Store the imageUrl regardless, but it's primarily used for file types
+        imageUrl: item.imageUrl || '',
         priority: typeof item.priority === 'number' ? item.priority : 3,
         createdBy: item.createdBy || 'Unknown',
         date: isoDate,
         originalFileName: item.originalFileName || '',
         __v: item.__v,
-        contentType: dbContentType, // Use the final determined/validated content type
+        contentType: determinedContentType, // Use the final determined/validated content type
       };
     }).filter((notice): notice is CollegeNotice => notice !== null); // Filter out any potential nulls if mapping failed
 
-    // Sorting is now handled by the database query, but double-check if needed.
-    // The DB sort should be sufficient.
-
+    // No need to sort again here, database sort is efficient
     console.log("Validated notices:", validatedNotices.length);
     return validatedNotices;
 
@@ -148,16 +158,16 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
 
 /**
  * Asynchronously retrieves important bulletin announcements.
- * Placeholder - Fetches high-priority notices or static data.
+ * Fetches high-priority text notices.
  * @returns A promise that resolves to an array of strings.
  */
 export async function getBulletinAnnouncements(): Promise<string[]> {
   try {
     const notices = await getCollegeNotices(); // Re-use fetching logic
     const highPriority = notices
-      .filter(n => n.priority === 1) // Filter for highest priority
+      .filter(n => n.contentType === 'text' && n.priority === 1) // Filter for highest priority TEXT notices
       .slice(0, 5) // Limit the number of announcements
-      .map(n => n.title); // Use the title as the announcement
+      .map(n => n.title + (n.content ? `: ${n.content.substring(0, 100)}...` : '')); // Use title and maybe some content
 
     if (highPriority.length > 0) {
       return highPriority;

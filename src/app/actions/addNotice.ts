@@ -86,15 +86,15 @@ const formDataSchema = z.object({
 });
 
 // ** MongoDB Setup **
-const uri = process.env.MONGODB_URI;
-const dbName = process.env.MONGODB_DB;
+const uri = process.env.MONGODB_URI || "mongodb+srv://ionode:ionode@ionode.qgqbadm.mongodb.net/Notices?retryWrites=true&w=majority&appName=ionode"; // Use default connection string if not set
+const dbName = process.env.MONGODB_DB || "Notices"; // Use default DB name if not set
 
 async function connectToDatabase(): Promise<Db> {
   if (!uri) {
-    throw new Error('MONGODB_URI is not defined in .env');
+    throw new Error('MONGODB_URI is not defined in .env or default string');
   }
   if (!dbName) {
-    throw new Error('MONGODB_DB is not defined in .env');
+    throw new Error('MONGODB_DB is not defined in .env or default string');
   }
 
   const client = new MongoClient(uri);
@@ -166,10 +166,6 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
          return { success: false, error: 'File is required for non-text notices.' };
     }
 
-    // Determine content type specifically for DB storage, primarily for text.
-    // For file types, the imageUrl implies the type.
-    let dbContentType: 'text' | 'pdf' | 'image' | 'video' = noticeType;
-
     // Construct the new notice object for the database
     const newNotice = {
       title,
@@ -183,7 +179,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
       // Store original file name only for file-based notices
       originalFileName: noticeType !== 'text' ? (fileName || validatedFile?.name || '') : '',
       // Explicitly store the intended content type based on the form selection
-      contentType: dbContentType,
+      contentType: noticeType, // <--- Ensure this is set directly from the form's noticeType
     };
 
     console.log('Attempting to add new notice to DB:', newNotice);
