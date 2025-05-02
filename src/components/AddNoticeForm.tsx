@@ -27,14 +27,24 @@ import {
 import { addNotice } from '@/app/actions/addNotice'; // Server Action
 import { useToast } from "@/hooks/use-toast";
 
-// This schema should closely match the one in the server action for client-side validation
+// Helper to check file size (e.g., max 10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
+const ACCEPTED_PDF_TYPES = ["application/pdf"];
+const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
+
+// Updated schema for file uploads
 const noticeSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
   content: z.string().optional(),
-  // Use imageUrl field for URL input
-  imageUrl: z.string().url('Please enter a valid URL (e.g., https://...)').optional().or(z.literal('')),
-  file: z.any().optional(), // Keep file input for potential future direct uploads, but prioritize imageUrl
+  // Use 'file' field for file input
+  file: z.any()
+    .refine(
+      (files) => files?.[0]?.size <= MAX_FILE_SIZE,
+      `Max file size is 10MB.`
+    )
+    .optional(), // Optional for text notices
   priority: z.coerce // Use coerce to handle string from input type="number"
     .number({ invalid_type_error: "Priority must be a number" })
     .min(1, "Priority must be at least 1")
@@ -42,22 +52,34 @@ const noticeSchema = z.object({
     .default(3),
 }).refine(data => {
     // Require content if type is text
-    if (data.noticeType === 'text' && !data.content?.trim()) {
-        return false;
+    if (data.noticeType === 'text') {
+        return !!data.content?.trim(); // Content must exist and not be empty spaces
     }
-    // Require imageUrl if type is not text
-    if (data.noticeType !== 'text' && !data.imageUrl?.trim()) {
-        // Note: We might add file upload later, this validation assumes URL input for now.
-        // If file upload is added, this logic needs adjustment.
-        return false;
+    // Require file if type is not text
+    if (data.noticeType !== 'text') {
+        return !!data.file?.[0]; // File must exist
     }
-    return true;
+    return true; // Should not happen if logic above is correct
 }, {
     // Custom error message based on the type
-    message: "Content is required for text notices, and a URL is required for PDF, image, or video notices.",
-    // Path indicates which field the error applies to, refinement errors don't belong to a single field easily
-    // We can refine specific fields above or handle this general message display
-    path: ["content", "imageUrl"], // Associate error with relevant fields
+    message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
+    // Path helps associate the error with relevant fields, though refine affects the whole object
+    path: ["content", "file"],
+}).refine(data => {
+    // Validate file type based on noticeType
+    if (data.noticeType === 'image' && data.file?.[0]) {
+        return ACCEPTED_IMAGE_TYPES.includes(data.file[0].type);
+    }
+    if (data.noticeType === 'pdf' && data.file?.[0]) {
+        return ACCEPTED_PDF_TYPES.includes(data.file[0].type);
+    }
+    if (data.noticeType === 'video' && data.file?.[0]) {
+        return ACCEPTED_VIDEO_TYPES.includes(data.file[0].type);
+    }
+    return true; // Pass if text notice or file type matches
+}, {
+    message: "Invalid file type selected for the chosen notice type.",
+    path: ["file"],
 });
 
 
@@ -73,8 +95,8 @@ export default function AddNoticeForm() {
       title: '',
       noticeType: 'text',
       content: '',
-      imageUrl: '',
       priority: 3,
+      file: undefined,
     },
   });
 
@@ -91,29 +113,19 @@ export default function AddNoticeForm() {
 
     if (values.noticeType === 'text') {
       formData.append('content', values.content || '');
+    } else if (values.file?.[0]) {
+        // Append the file itself
+        formData.append('file', values.file[0]);
+        formData.append('fileName', values.file[0].name); // Send original filename
     } else {
-        // Use the provided imageUrl if available
-        if (values.imageUrl) {
-            formData.append('imageUrl', values.imageUrl);
-        }
-        // TODO: Add actual file upload logic here if required in the future
-        // else if (values.file?.[0]) {
-        //   // Handle file upload, get URL, then append
-        //   formData.append('fileName', values.file[0].name);
-        //   // Example: const uploadedUrl = await uploadFile(values.file[0]);
-        //   // formData.append('imageUrl', uploadedUrl);
-        // }
-        else {
-            // Handle case where neither URL nor file is provided for non-text type
-            // This should ideally be caught by Zod validation, but as a fallback:
-            toast({
-                title: "Missing Content",
-                description: `Please provide a URL for the ${values.noticeType} notice.`,
-                variant: "destructive",
-            });
-            setIsLoading(false);
-            return; // Stop submission
-        }
+        // This case should be caught by Zod validation, but added as a fallback
+        toast({
+            title: "Missing Content",
+            description: `Please upload a file for the ${values.noticeType} notice.`,
+            variant: "destructive",
+        });
+        setIsLoading(false);
+        return; // Stop submission
     }
 
 
@@ -179,12 +191,9 @@ export default function AddNoticeForm() {
               <FormLabel>Notice Type</FormLabel>
               <Select onValueChange={(value) => {
                 field.onChange(value);
-                // Optionally reset other fields when type changes
-                if (value === 'text') {
-                    form.setValue('imageUrl', ''); // Clear URL if switching to text
-                } else {
-                    form.setValue('content', ''); // Clear content if switching away from text
-                }
+                // Reset other fields when type changes
+                form.setValue('file', undefined); // Clear file input
+                form.setValue('content', ''); // Clear content
               }} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -225,61 +234,36 @@ export default function AddNoticeForm() {
             )}
           />
         ) : (
-           // Field for URL input for PDF, Image, Video
-          <FormField
-            control={form.control}
-            name="imageUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                   URL for {noticeType === 'pdf' ? 'PDF' : noticeType === 'image' ? 'Image' : 'Video'}
-                </FormLabel>
-                <FormControl>
-                   <Input
-                     type="url"
-                     placeholder={`Enter URL (e.g., https://... .${noticeType})`}
-                     {...field}
-                   />
-                </FormControl>
-                 <FormDescription>
-                   Enter the direct link to the {noticeType} file. Ensure it's publicly accessible.
-                 </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          /* Optional File input - keep commented out unless implementing direct uploads
+           // Field for File input for PDF, Image, Video
           <FormField
             control={form.control}
             name="file"
-            render={({ field: { value, onChange, ...fieldProps } }) => (
+            render={({ field: { value, onChange, ...fieldProps } }) => ( // Destructure field correctly
               <FormItem>
                 <FormLabel>
-                  Upload {noticeType === 'pdf' ? 'PDF' : noticeType === 'image' ? 'Image' : 'Video'} (Optional)
+                   Upload {noticeType === 'pdf' ? 'PDF' : noticeType === 'image' ? 'Image' : 'Video'}
                 </FormLabel>
                 <FormControl>
                    <Input
-                     {...fieldProps}
+                     {...fieldProps} // Spread remaining props
                      type="file"
                      accept={
-                       noticeType === 'pdf' ? '.pdf' :
-                       noticeType === 'image' ? 'image/*' :
-                       noticeType === 'video' ? 'video/*' : ''
+                       noticeType === 'pdf' ? ACCEPTED_PDF_TYPES.join(',') :
+                       noticeType === 'image' ? ACCEPTED_IMAGE_TYPES.join(',') :
+                       noticeType === 'video' ? ACCEPTED_VIDEO_TYPES.join(',') : ''
                      }
                      onChange={(event) =>
-                       onChange(event.target.files)
+                       onChange(event.target.files) // Use RHF's onChange
                      }
                    />
                 </FormControl>
                  <FormDescription>
-                    Alternative to providing a URL. (File upload not fully implemented yet).
+                   Upload the {noticeType} file. Max size: 10MB.
                  </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          */
         )}
 
 

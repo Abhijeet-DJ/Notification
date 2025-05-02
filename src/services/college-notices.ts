@@ -5,16 +5,16 @@ import { MongoClient, Db } from 'mongodb';
 
 /**
  * Represents a college notice with various content types.
- * Matches the provided API data structure.
  */
 export interface CollegeNotice {
   _id: string; // Unique identifier from the database (converted to string)
   title: string;
   content?: string; // Content, primarily for text notices
-  imageUrl?: string; // URL for PDF, image, or video files
+  imageUrl?: string; // URL for PDF, image, or video files (from upload)
   priority: number; // Notice priority
   createdBy: string; // Identifier of the creator
   date: string; // ISO date string
+  originalFileName?: string; // Original name of the uploaded file
   __v?: number; // Version key, optional
   // Derived property, not directly from API but essential for filtering/rendering
   contentType: 'text' | 'pdf' | 'image' | 'video';
@@ -22,14 +22,11 @@ export interface CollegeNotice {
 
 
 // ** MongoDB Setup **
-// Use environment variables, provide defaults ONLY for local development if necessary,
-// but prefer direct environment variable setting.
-const uri = process.env.MONGODB_URI; // No default here for security best practice
-const dbName = process.env.MONGODB_DB || "Notices"; // Default DB name if not set
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.MONGODB_DB || "Notices";
 
 async function connectToDatabase(): Promise<Db> {
   if (!uri) {
-    // More informative error for missing URI
     console.error('FATAL ERROR: MONGODB_URI environment variable is not set.');
     throw new Error('Database configuration error: MONGODB_URI is missing.');
   }
@@ -44,14 +41,12 @@ async function connectToDatabase(): Promise<Db> {
     await client.connect();
     console.log("Connected to MongoDB for getCollegeNotices");
     const db = client.db(dbName);
-    // Store client instance on the Db object to close it later
     (db as any)._client = client;
     return db;
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
-     // Ensure client is closed even if connection fails mid-way
     await client.close();
-    throw error; // Re-throw error to be caught by calling function
+    throw error;
   }
 }
 
@@ -66,103 +61,96 @@ async function closeDatabaseConnection(db: Db) {
 
 /**
  * Asynchronously retrieves college notices from the MongoDB database.
- *
+ * Derives contentType based on imageUrl or content presence.
  * @returns A promise that resolves to an array of CollegeNotice objects.
  */
 export async function getCollegeNotices(): Promise<CollegeNotice[]> {
-  let db: Db | null = null; // Keep track of the Db object to close connection
+  let db: Db | null = null;
   try {
     db = await connectToDatabase();
-    const collection = db.collection('notices'); // Use your actual collection name
+    const collection = db.collection('notices');
 
-    // Fetch all notices from the database
     const noticesFromDb = await collection.find({}).toArray();
-    console.log("Fetched notices from DB:", noticesFromDb.length); // Log fetched count
+    console.log("Fetched notices from DB:", noticesFromDb.length);
 
-    // Validate and map the data to the CollegeNotice interface
     const validatedNotices: CollegeNotice[] = noticesFromDb.map((item: any) => {
-      let contentType: 'text' | 'pdf' | 'image' | 'video' = 'text'; // Default assumption
+      let contentType: 'text' | 'pdf' | 'image' | 'video' = 'text'; // Default to text
 
-      // Robust check for imageUrl
-      const imageUrl = item.imageUrl && typeof item.imageUrl === 'string' ? item.imageUrl.trim().toLowerCase() : '';
+      const imageUrl = item.imageUrl && typeof item.imageUrl === 'string' ? item.imageUrl.trim() : '';
+      const fileExtension = imageUrl.split('.').pop()?.toLowerCase() || '';
+      const originalFileName = item.originalFileName || '';
+      const originalExtension = originalFileName.split('.').pop()?.toLowerCase() || '';
 
       if (imageUrl) {
-         // More reliable extension checking
-         if (imageUrl.endsWith('.pdf')) {
+          // Prioritize checking based on the URL extension first
+         if (['pdf'].includes(fileExtension) || ['pdf'].includes(originalExtension)) {
             contentType = 'pdf';
-         } else if (/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(imageUrl)) { // Case-insensitive image check
+         } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExtension) || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(originalExtension)) {
             contentType = 'image';
-         } else if (/\.(mp4|webm|mov|avi|mkv)$/i.test(imageUrl)) { // Case-insensitive video check
+         } else if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg'].includes(fileExtension) || ['mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg'].includes(originalExtension)) {
             contentType = 'video';
-         } else {
-             // If URL exists but isn't recognized, check for content
-             if (item.content && typeof item.content === 'string' && item.content.trim()) {
-                 contentType = 'text';
-             } else {
-                 // If URL isn't file and no content, maybe default to 'text' or log warning?
-                 // For now, stick to 'text' based on title
-                 contentType = 'text';
-                 console.warn(`Notice "${item.title}" has unrecognized imageUrl and no content. Defaulting to 'text'. URL: ${item.imageUrl}`);
-             }
-         }
+          } else if (item.content && typeof item.content === 'string' && item.content.trim()) {
+             // If URL doesn't match known file types, but content exists, treat as text
+             contentType = 'text';
+          } else {
+              // If URL doesn't match and no content, default to text (maybe log a warning)
+               console.warn(`Notice "${item.title}" has an unrecognized imageUrl/extension and no content. Defaulting to 'text'. URL: ${imageUrl}, Original Name: ${originalFileName}`);
+              contentType = 'text';
+          }
       } else if (item.content && typeof item.content === 'string' && item.content.trim()) {
-        // If no valid imageUrl, but content exists, it's definitely text
+        // If no imageUrl, but content exists, it's text
         contentType = 'text';
       } else {
-        // If neither valid imageUrl nor content exists, default to text (using title only)
-        contentType = 'text';
+         // If neither imageUrl nor content, default to text
          console.warn(`Notice "${item.title}" has no imageUrl or content. Defaulting to 'text'.`);
+         contentType = 'text';
       }
 
-      // console.log(`Item: ${item.title}, ImageUrl: ${item.imageUrl}, Content: ${item.content}, Detected Type: ${contentType}`);
+      console.log(`Notice: ${item.title}, ImageUrl: ${imageUrl}, Content: ${!!item.content}, Derived Type: ${contentType}`);
 
-      // Ensure date is a valid ISO string, default to now if invalid/missing
-       let isoDate: string;
-       try {
+
+      let isoDate: string;
+      try {
            isoDate = item.date instanceof Date ? item.date.toISOString() : new Date(item.date).toISOString();
-           // Check if the parsed date is valid
-           if (isNaN(new Date(isoDate).getTime())) {
-               throw new Error('Invalid date');
-           }
-       } catch (e) {
+           if (isNaN(new Date(isoDate).getTime())) throw new Error('Invalid date');
+      } catch (e) {
            console.warn(`Invalid or missing date for notice "${item.title}". Defaulting to current date.`);
            isoDate = new Date().toISOString();
-       }
+      }
 
 
       return {
-        _id: item._id ? item._id.toString() : `generated_${Math.random()}`, // Handle missing _id?
-        title: item.title || 'Untitled Notice', // Ensure title exists
-        content: item.content || '', // Ensure content is at least an empty string
-        // Use the original (non-lowercase) URL if it exists, otherwise empty string
-        imageUrl: item.imageUrl && typeof item.imageUrl === 'string' ? item.imageUrl.trim() : '',
-        priority: typeof item.priority === 'number' ? item.priority : 3, // Default priority
-        createdBy: item.createdBy || 'Unknown', // Default creator
-        date: isoDate, // Use validated/defaulted ISO date string
-        __v: item.__v, // Include version key if present
+        _id: item._id ? item._id.toString() : `generated_${Math.random()}`,
+        title: item.title || 'Untitled Notice',
+        content: item.content || '',
+        imageUrl: imageUrl, // Use the potentially empty string
+        priority: typeof item.priority === 'number' ? item.priority : 3,
+        createdBy: item.createdBy || 'Unknown',
+        date: isoDate,
+        originalFileName: originalFileName,
+        __v: item.__v,
         contentType: contentType, // Set the derived content type
       };
-    }).filter(notice => notice !== null); // Filter out any potential nulls if validation were stricter
+    }).filter((notice): notice is CollegeNotice => notice !== null);
 
-    // Sort notices primarily by priority (ascending, lower number is higher priority)
-    // and secondarily by date (descending, newest first)
+
+    // Sort notices primarily by priority (ascending) and secondarily by date (descending)
     validatedNotices.sort((a, b) => {
       if (a.priority !== b.priority) {
-        return a.priority - b.priority; // Lower priority number first
+        return a.priority - b.priority;
       }
-      // If priorities are the same, sort by date descending (newest first)
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    console.log("Validated and sorted notices:", validatedNotices.length); // Log processed count
+    console.log("Validated and sorted notices:", validatedNotices.length);
     return validatedNotices;
 
   } catch (error) {
     console.error('Failed to fetch or process college notices:', error);
-    return []; // Return empty array on error
+    return [];
   } finally {
     if (db) {
-      await closeDatabaseConnection(db); // Ensure the client connection is closed via the Db object
+      await closeDatabaseConnection(db);
     }
   }
 }
@@ -170,15 +158,27 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
 
 /**
  * Asynchronously retrieves important bulletin announcements.
- * In a real app, this would likely fetch from an API or database.
- *
- * @returns A promise that resolves to an array of strings representing bulletin announcements.
+ * Placeholder - Fetches high-priority notices or static data.
+ * @returns A promise that resolves to an array of strings.
  */
 export async function getBulletinAnnouncements(): Promise<string[]> {
-  // TODO: Implement this by calling an API or fetching from a database if needed.
-  // Using static data for now.
-  // Consider fetching high-priority notices (e.g., priority 1) for the bulletin
-  await new Promise(resolve => setTimeout(resolve, 50)); // Simulate async fetch
+  try {
+    // Example: Fetch top priority notices to use as announcements
+    const notices = await getCollegeNotices();
+    const highPriority = notices
+      .filter(n => n.priority === 1) // Filter for highest priority
+      .slice(0, 5) // Limit the number of announcements
+      .map(n => n.title); // Use the title as the announcement
+
+    if (highPriority.length > 0) {
+      return highPriority;
+    }
+  } catch (error) {
+    console.error("Failed to fetch notices for bulletin:", error);
+  }
+
+  // Fallback static data if fetching fails or no high-priority notices
+  console.log("Using static bulletin data.");
   return [
     'Welcome to the College Notifier App!',
     'Check back often for important updates.',
