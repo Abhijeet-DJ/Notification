@@ -25,18 +25,20 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   // const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const totalItems = notices.length;
-  // Adjusted itemsPerPage logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
+  // Items per page logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
   const itemsPerPage = isVideoNotices ? 1 : totalItems;
-  // Calculate totalPages for different types
+  // Threshold for text notice animation
+  const textAnimationThreshold = 5;
+
+  // Calculate totalPages or determine if animation should occur
   const totalPages = (isVideoNotices && totalItems > 0) ? Math.ceil(totalItems / itemsPerPage)
                     : (isPdfNotices && totalItems > 0) ? Math.ceil(totalItems / 2) // Number of pairs for PDFs
-                    : (isTextNotices && totalItems > 0) ? Math.ceil(totalItems / 5) // Number of 'pages' for Text (groups of 5)
-                    : 0;
+                    : 0; // Text and Image use belt logic, no traditional pagination needed
 
-  // Should the section animate? Only if more than one page/pair exists or enough text items.
-  const shouldAnimate = (isPdfNotices && totalPages > 1)
-                       || (isTextNotices && totalPages > 1) // Animate text if more than 5 items (more than 1 page)
-                       || isImageNotices; // Always animate images if any
+  // Should the section animate?
+  const shouldAnimatePdf = isPdfNotices && totalPages > 1; // Animate PDFs if more than 1 pair
+  const shouldAnimateText = isTextNotices && totalItems > textAnimationThreshold; // Animate text if more than threshold items
+  const shouldAnimateImages = isImageNotices && totalItems > 0; // Always animate images if any exist
 
 
   // Remove startItemChangeAnimation as interval is no longer used for videos
@@ -104,8 +106,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
              // Text Belt Logic (Vertical)
              <div className="h-full w-full overflow-hidden">
                <div
-                  className={`flex flex-col h-full ${shouldAnimate ? 'animate-marquee-vertical' : ''}`}
-                  style={{ animationPlayState: shouldAnimate ? 'running' : 'paused' }}
+                  // Conditionally apply animation class and style for text
+                  className={`flex flex-col h-full ${shouldAnimateText ? 'animate-marquee-vertical' : ''}`}
+                  style={{ animationPlayState: shouldAnimateText ? 'running' : 'paused' }}
                 >
                   {/* Render all text items */}
                   <div className="flex-shrink-0 w-full px-4 py-2"> {/* Added padding for spacing */}
@@ -120,7 +123,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                        ))}
                   </div>
                    {/* Duplicate text items for seamless looping, only if animating */}
-                  {shouldAnimate && (
+                  {shouldAnimateText && (
                     <div className="flex-shrink-0 w-full px-4 py-2" aria-hidden="true"> {/* Added padding */}
                         {notices.map((notice) => (
                            <div key={`dup-${notice._id}`} className="py-2 border-b last:border-b-0">
@@ -167,8 +170,8 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                  <div className="h-full w-full overflow-hidden">
                    {/* Apply animation class and style conditionally */}
                     <div
-                        className={`flex flex-col h-full ${shouldAnimate ? 'animate-marquee-vertical' : ''}`}
-                        style={{ animationPlayState: shouldAnimate ? 'running' : 'paused' }}
+                        className={`flex flex-col h-full ${shouldAnimatePdf ? 'animate-marquee-vertical' : ''}`}
+                        style={{ animationPlayState: shouldAnimatePdf ? 'running' : 'paused' }}
                      >
                         {/* Render PDF pairs */}
                         {Array.from({ length: totalPages }).map((_, pageIndex) => {
@@ -193,7 +196,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                             );
                         })}
                         {/* Duplicate PDF pairs for seamless looping, only if animating */}
-                        {shouldAnimate && Array.from({ length: totalPages }).map((_, pageIndex) => {
+                        {shouldAnimatePdf && Array.from({ length: totalPages }).map((_, pageIndex) => {
                              const pairStartIndex = pageIndex * 2;
                              const pair = notices.slice(pairStartIndex, pairStartIndex + 2);
                              return (
@@ -406,3 +409,5 @@ export default function Home() {
 }
 
 
+
+    
