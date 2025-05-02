@@ -1,147 +1,114 @@
+
 // src/app/api/upload-with-multer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
-import { promisify } from 'util';
+import { Writable } from 'stream';
+import { pipeline } from 'stream/promises';
 
 // Ensure the upload directory exists
 const uploadDir = path.join(process.cwd(), 'public', 'uploads');
 const ensureUploadDirExists = async () => {
   try {
     await fs.access(uploadDir);
-  } catch (error) {
-    // Directory doesn't exist, create it
-    await fs.mkdir(uploadDir, { recursive: true });
-    console.log(`Created upload directory: ${uploadDir}`);
+    console.log(`Upload directory already exists: ${uploadDir}`);
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Directory doesn't exist, create it
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+        console.log(`Created upload directory: ${uploadDir}`);
+      } catch (mkdirError) {
+        console.error(`Failed to create upload directory: ${uploadDir}`, mkdirError);
+        throw new Error(`Server configuration error: Could not create upload directory. ${mkdirError}`); // Throw specific error
+      }
+    } else {
+      // Other error accessing directory (e.g., permissions)
+      console.error(`Error accessing upload directory: ${uploadDir}`, error);
+      throw new Error(`Server configuration error: Could not access upload directory. ${error.message}`);
+    }
   }
 };
 
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    await ensureUploadDirExists(); // Ensure directory exists before saving
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    const filename = file.fieldname + '-' + uniqueSuffix + extension;
-    cb(null, filename);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
-
-// Promisify the multer upload middleware
-const uploadMiddleware = promisify(upload.single('file'));
-
-// Helper function to run middleware in Next.js API routes
-async function runMiddleware(req: any, res: any, fn: any) {
-  return new Promise((resolve, reject) => {
-    fn(req, res, (result: any) => {
-      if (result instanceof Error) {
-        return reject(result);
-      }
-      return resolve(result);
-    });
-  });
-}
+// Define file size limit (e.g., 10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export async function POST(req: NextRequest) {
   try {
-    // We need to construct a minimal 'res' object for multer
-    const mockRes: any = {
-      setHeader: () => {},
-      getHeader: () => {},
-      // Add other methods if multer requires them
-    };
+    // 1. Ensure upload directory exists before processing request
+    await ensureUploadDirExists();
 
-    await runMiddleware(req, mockRes, uploadMiddleware);
-
-    // Access the file info from the request object modified by multer
-    // Note: Accessing req.file directly might not work as expected in App Router.
-    // We might need to re-read the request body or find where multer attaches the file info.
-    // A common pattern is to use a library like `next-connect` or adapt multer usage.
-
-    // Since direct req.file access is tricky, let's try re-parsing FormData
-    // (This is a workaround; ideally, multer integration would be smoother)
+    // 2. Get FormData from the request
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
 
-    if (!file || !(file instanceof File)) {
-       console.error("[upload-with-multer] No file found after middleware.");
-       return NextResponse.json({ success: false, error: 'No file uploaded or file access issue after middleware.' }, { status: 400 });
+    // 3. Validate file presence and type
+    if (!file) {
+      console.error("[upload-with-multer] No file found in FormData.");
+      return NextResponse.json({ success: false, error: 'No file uploaded.' }, { status: 400 });
     }
 
-    // Find the filename associated with the upload
-    // This part is tricky without direct req.file access. We infer it based on how multer names it.
-    // This assumes multer successfully saved the file.
-    // We need to get the *actual* saved filename from the storage configuration logic if possible,
-    // but that's internal to multer. Let's construct the public URL.
+    if (!(file instanceof File)) {
+      console.error("[upload-with-multer] Invalid file type in FormData.");
+      return NextResponse.json({ success: false, error: 'Invalid file data.' }, { status: 400 });
+    }
 
-    // Re-construct filename based on expected pattern (less reliable)
-    // Or find a way to access the filename saved by multer.
-    // For simplicity, let's assume we can retrieve the saved filename somehow.
-    // In a real scenario, we'd need a more robust way to get the saved filename.
-
-    // **This is a placeholder - Need a reliable way to get the actual saved filename**
-    // const savedFilename = mockRes.file?.filename; // Accessing potentially attached data
-    // A more practical approach: Read the directory and find the latest file (still hacky)
-    // Or modify multer storage to pass filename back differently.
-
-    // Let's **assume** we got the filename from multer somehow (e.g., attaching it to mockRes):
-    const savedFilename = (req as any).file?.filename; // Check if multer attached it
-
-     if (!savedFilename) {
-       console.error("[upload-with-multer] Could not determine saved filename after upload.");
-       // Attempt to list directory content to find the latest file as a fallback (less ideal)
-       try {
-         const files = await fs.readdir(uploadDir);
-         const latestFile = files.sort((a, b) => {
-           const statA = fs.stat(path.join(uploadDir, a));
-           const statB = fs.stat(path.join(uploadDir, b));
-           return statB.mtimeMs - statA.mtimeMs; // Sort by modification time descending
-         })[0];
-         if (latestFile) {
-            console.warn("[upload-with-multer] Inferring filename as:", latestFile);
-            const fileUrl = `/uploads/${latestFile}`;
-            return NextResponse.json({ success: true, url: fileUrl });
-         } else {
-            throw new Error("Upload directory is empty or inaccessible.");
-         }
-       } catch (dirError) {
-          console.error("[upload-with-multer] Error trying fallback filename retrieval:", dirError);
-          return NextResponse.json({ success: false, error: 'Failed to determine uploaded file name.' }, { status: 500 });
-       }
-     }
+    // 4. Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+       console.error(`[upload-with-multer] File too large: ${file.size} bytes`);
+       return NextResponse.json({ success: false, error: `File too large. Max size is ${MAX_FILE_SIZE / (1024*1024)}MB.` }, { status: 413 }); // 413 Payload Too Large
+    }
 
 
-    const fileUrl = `/uploads/${savedFilename}`; // Public access path
+    // 5. Generate a unique filename (similar to multer's default behavior)
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.name);
+    const filename = `file-${uniqueSuffix}${extension}`; // Simplified fieldname
+    const filepath = path.join(uploadDir, filename);
 
-    console.log(`[upload-with-multer] File uploaded successfully: ${savedFilename}, URL: ${fileUrl}`);
-    return NextResponse.json({ success: true, url: fileUrl });
+    console.log(`[upload-with-multer] Attempting to save file: ${filename} to ${filepath}`);
+
+    // 6. Save the file to the filesystem using streams for efficiency
+    try {
+      // Convert the File stream to a Node.js readable stream
+      const readableStream = file.stream();
+
+      // Create a Node.js writable stream to the destination file
+      const writableStream = fs.createWriteStream(filepath);
+
+      // Pipe the data from the readable stream to the writable stream
+      await pipeline(readableStream as any, writableStream); // Use pipeline for robust stream handling
+
+      console.log(`[upload-with-multer] File saved successfully: ${filename}`);
+    } catch (saveError: any) {
+      console.error(`[upload-with-multer] Error saving file ${filename}:`, saveError);
+      // Attempt to clean up partially written file if save fails
+      try {
+        await fs.unlink(filepath);
+        console.log(`[upload-with-multer] Cleaned up partially written file: ${filename}`);
+      } catch (cleanupError) {
+        console.error(`[upload-with-multer] Error cleaning up file ${filename}:`, cleanupError);
+      }
+      return NextResponse.json({ success: false, error: `Failed to save uploaded file. ${saveError.message}` }, { status: 500 });
+    }
+
+    // 7. Construct the public URL
+    const fileUrl = `/uploads/${filename}`; // Public access path relative to the 'public' directory
+
+    console.log(`[upload-with-multer] File uploaded successfully. URL: ${fileUrl}`);
+    return NextResponse.json({ success: true, url: fileUrl, originalFilename: file.name }); // Return original name too
 
   } catch (error: any) {
-    console.error('[upload-with-multer] Upload failed:', error);
-    if (error instanceof multer.MulterError) {
-      if (error.code === 'LIMIT_FILE_SIZE') {
-        return NextResponse.json({ success: false, error: 'File too large. Max size is 10MB.' }, { status: 413 });
-      }
-      return NextResponse.json({ success: false, error: `Multer error: ${error.message}` }, { status: 400 });
-    }
-    return NextResponse.json({ success: false, error: `Upload failed: ${error.message}` }, { status: 500 });
+    // Catch any unexpected errors during the process
+    console.error('[upload-with-multer] Unexpected error during POST:', error);
+    // Check for specific error types if needed, otherwise return a generic 500
+     let errorMessage = `Upload failed: ${error.message}`;
+     if (error.message?.includes('Could not create upload directory')) {
+         errorMessage = 'Server setup error: Cannot create storage directory.';
+     } else if (error.message?.includes('Could not access upload directory')) {
+         errorMessage = 'Server setup error: Cannot access storage directory.';
+     }
+
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
-
-// We need to tell Next.js not to parse the body for this route
-// export const config = {
-//   api: {
-//     bodyParser: false,
-//   },
-// };
-// Note: The above config is for Pages Router. App Router handles this differently.
-// The route should inherently handle FormData correctly.

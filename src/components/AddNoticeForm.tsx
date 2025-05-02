@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -40,7 +41,7 @@ const formSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
   // Content is required only for text notices
-  content: z.string().optional(),
+  content: z.string().optional().nullable().transform(val => val ?? ''), // Ensure content is always string or empty string
   // File input is handled separately, but we need a field for validation trigger
   file: z.instanceof(typeof window !== 'undefined' ? FileList : Object).optional(),
   priority: z.coerce // Use coerce to handle string from input type="number"
@@ -51,9 +52,9 @@ const formSchema = z.object({
 }).refine(data => {
     // Require content if type is text
     if (data.noticeType === 'text') {
-        return !!data.content?.trim();
+        return !!data.content?.trim(); // Content needs to be non-empty for text notices
     }
-    // Require file if type is not text (this refine checks if FileList exists)
+    // Require file if type is not text (this refine checks if FileList exists and has a file)
     if (data.noticeType !== 'text') {
         return !!data.file?.[0];
     }
@@ -63,7 +64,7 @@ const formSchema = z.object({
     path: ["content", "file"], // Point to both fields
 }).refine(data => {
     // Validate file properties if a file exists in the FileList
-    if (data.file?.[0]) {
+    if (data.noticeType !== 'text' && data.file?.[0]) {
         const file = data.file[0];
         // Check size
         if (file.size > MAX_FILE_SIZE) {
@@ -121,7 +122,7 @@ export default function AddNoticeForm() {
   const noticeType = form.watch('noticeType');
 
   // Function to handle file upload
-  const handleFileUpload = async (file: File): Promise<string | null> => {
+  const handleFileUpload = async (file: File): Promise<{ url: string; originalFilename: string } | null> => {
       setIsUploading(true);
       setUploadProgress(0);
       const formData = new FormData();
@@ -146,8 +147,8 @@ export default function AddNoticeForm() {
                      try {
                          const response = JSON.parse(xhr.responseText);
                          if (response.success && response.url) {
-                             console.log("Upload successful, URL:", response.url);
-                             resolve(response.url);
+                             console.log("Upload successful:", response);
+                             resolve({ url: response.url, originalFilename: response.originalFilename || file.name });
                          } else {
                              console.error("Upload API reported failure:", response.error);
                              reject(new Error(response.error || 'Upload failed: Server error'));
@@ -158,7 +159,13 @@ export default function AddNoticeForm() {
                      }
                  } else {
                      console.error("Upload failed with status:", xhr.status, xhr.statusText);
-                     reject(new Error(`Upload failed: ${xhr.statusText || 'Server error'}`));
+                      try {
+                         // Try to parse error message from server response
+                         const response = JSON.parse(xhr.responseText);
+                         reject(new Error(`Upload failed: ${response.error || xhr.statusText || 'Server error'}`));
+                       } catch (e) {
+                         reject(new Error(`Upload failed: ${xhr.statusText || 'Server error'}`));
+                       }
                  }
              };
 
@@ -196,24 +203,26 @@ export default function AddNoticeForm() {
     // Handle file upload if necessary
     if (values.noticeType !== 'text' && values.file?.[0]) {
         const fileToUpload = values.file[0];
-        originalFileName = fileToUpload.name;
-        imageUrl = await handleFileUpload(fileToUpload);
+        const uploadResult = await handleFileUpload(fileToUpload);
 
-        if (!imageUrl) {
+        if (!uploadResult) {
             // Error occurred during upload, toast shown in handleFileUpload
             setIsLoading(false);
             return; // Stop submission
         }
+        imageUrl = uploadResult.url;
+        originalFileName = uploadResult.originalFilename; // Use filename from upload result
     }
 
     // Prepare data for the server action
+    // Ensure content is explicitly set for text, and empty for others if not provided
     const noticeDataForAction = {
       title: values.title,
       noticeType: values.noticeType,
       priority: values.priority,
-      content: values.noticeType === 'text' ? values.content || '' : '', // Send content only for text
-      imageUrl: imageUrl, // Send the URL obtained from upload
-      originalFileName: originalFileName,
+      content: values.noticeType === 'text' ? (values.content || '') : '', // Send content only for text, ensure it's a string
+      imageUrl: imageUrl, // Send the URL obtained from upload (or null/undefined)
+      originalFileName: originalFileName, // Send the original filename
     };
 
     try {
@@ -255,8 +264,9 @@ export default function AddNoticeForm() {
    // Log form errors for debugging
    React.useEffect(() => {
      const subscription = form.watch((value, { name, type }) => {
+       // console.log("Form value changed:", name, value); // Optional: log all changes
        if (form.formState.errors && Object.keys(form.formState.errors).length > 0) {
-          console.log("Form validation errors:", form.formState.errors);
+          console.log("Current Form validation errors:", form.formState.errors);
        }
      });
      return () => subscription.unsubscribe();
@@ -289,12 +299,14 @@ export default function AddNoticeForm() {
               <Select onValueChange={(value) => {
                 field.onChange(value);
                 // Reset dependent fields when type changes
-                form.setValue('file', undefined, { shouldValidate: true });
-                form.setValue('content', '', { shouldValidate: true });
+                form.resetField('file', { defaultValue: undefined });
+                form.resetField('content', { defaultValue: '' });
                 setSelectedFileName(null);
                  if (fileInputRef.current) {
                     fileInputRef.current.value = ''; // Clear file input visually
                  }
+                 // Re-validate relevant fields after type change
+                 form.trigger(['content', 'file']);
               }} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -325,7 +337,7 @@ export default function AddNoticeForm() {
                     placeholder="Enter notice content"
                     className="min-h-[100px]"
                     {...field}
-                    value={field.value ?? ''} // Handle potential undefined value
+                    value={field.value ?? ''} // Handle potential null/undefined value
                   />
                 </FormControl>
                  <FormDescription>
@@ -361,10 +373,12 @@ export default function AddNoticeForm() {
                          onChange(files); // Update RHF's state with FileList
                          if (files && files[0]) {
                            setSelectedFileName(files[0].name);
-                           // Manually trigger validation for the file field
-                          // form.trigger("file"); // Re-validate on file selection
+                           // Manually trigger validation for the file field after selection
+                           form.trigger("file");
                          } else {
                            setSelectedFileName(null);
+                           // If no file is selected, trigger validation too
+                           form.trigger("file");
                          }
                       }}
                       disabled={isUploading || isLoading} // Disable while uploading/submitting
@@ -400,7 +414,7 @@ export default function AddNoticeForm() {
                   // Use onChange to handle potential empty string and convert to number
                   onChange={e => {
                       const value = e.target.value;
-                      // Allow empty input or convert to number
+                      // Allow empty input or convert to number for RHF state
                       field.onChange(value === '' ? undefined : Number(value));
                   }}
                  />
