@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -213,9 +214,9 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
    // if (title === "PDF Notices") {
    //   console.log("[DEBUG][NoticeBlock] PDF Notices - currentNotices:", currentNotices);
    // }
-   // if (title === "Image Notices" && currentNotices.length > 0) {
-   //    console.log("[DEBUG][NoticeBlock] Image Notice URL to render:", currentNotices[0]?.imageUrl);
-   // }
+   if (title === "Image Notices" && currentNotices.length > 0) {
+      console.log("[DEBUG][NoticeBlock] Image Notice URL to render:", currentNotices[0]?.imageUrl); // Log the URL
+   }
 
 
   return (
@@ -286,7 +287,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                      // Adjusted image container and image classes
                      (() => {
                         // Log the image URL right before rendering the img tag
-                        // console.log(`[DEBUG][NoticeBlock][Image Notices] Rendering Image: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
+                        console.log(`[DEBUG][NoticeBlock][Image Notices] Rendering Image: Title="${currentNotices[0].title}", URL=${currentNotices[0].imageUrl}`);
                         return null; // This IIFE doesn't render anything
                       })(),
                      <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
@@ -497,4 +498,3 @@ export default function Home() {
   );
 }
 
-    

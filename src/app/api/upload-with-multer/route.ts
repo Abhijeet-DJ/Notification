@@ -12,8 +12,9 @@ const uploadDir = path.join(process.cwd(), 'public', 'uploads');
 const ensureUploadDirExists = async () => {
   console.log(`[ensureUploadDirExists] Checking/Creating directory: ${uploadDir}`);
   try {
-    await fs.access(uploadDir);
-    console.log(`[ensureUploadDirExists] Upload directory already exists: ${uploadDir}`);
+    // Check if directory exists and has write permissions
+    await fs.access(uploadDir, fs.constants.W_OK);
+    console.log(`[ensureUploadDirExists] Upload directory exists and is writable: ${uploadDir}`);
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       // Directory doesn't exist, create it
@@ -21,13 +22,19 @@ const ensureUploadDirExists = async () => {
       try {
         await fs.mkdir(uploadDir, { recursive: true });
         console.log(`[ensureUploadDirExists] Created upload directory: ${uploadDir}`);
-      } catch (mkdirError: any) { // Catch specific mkdir error
-        console.error(`[ensureUploadDirExists] Failed to create upload directory: ${uploadDir}`, mkdirError);
-        // Provide more context in the error message
-        throw new Error(`Server configuration error: Could not create upload directory at ${uploadDir}. Check permissions. Details: ${mkdirError.message}`);
+        // Verify write permissions after creation (though mkdir usually handles this)
+        await fs.access(uploadDir, fs.constants.W_OK);
+        console.log(`[ensureUploadDirExists] Verified write permissions for created directory: ${uploadDir}`);
+      } catch (mkdirError: any) { // Catch specific mkdir or access error
+        console.error(`[ensureUploadDirExists] Failed to create or verify upload directory: ${uploadDir}`, mkdirError);
+        throw new Error(`Server configuration error: Could not create or access upload directory at ${uploadDir}. Check permissions. Details: ${mkdirError.message}`);
       }
+    } else if (error.code === 'EACCES') {
+        // Directory exists but no write permissions
+        console.error(`[ensureUploadDirExists] Permission denied for upload directory: ${uploadDir}`, error);
+        throw new Error(`Server configuration error: Write permission denied for upload directory at ${uploadDir}. Check permissions. Details: ${error.message}`);
     } else {
-      // Other error accessing directory (e.g., permissions)
+      // Other error accessing directory
       console.error(`[ensureUploadDirExists] Error accessing upload directory: ${uploadDir}`, error);
       throw new Error(`Server configuration error: Could not access upload directory at ${uploadDir}. Check permissions. Details: ${error.message}`);
     }
@@ -71,13 +78,14 @@ export async function POST(req: NextRequest) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const extension = path.extname(file.name);
     // Sanitize filename slightly (replace spaces, etc.) - more robust sanitization might be needed
-    const baseName = path.basename(file.name, extension).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const baseName = path.basename(file.name, extension).replace(/[^a-zA-Z0-9_.-]/g, '_'); // Allow dots and hyphens
     const filename = `${baseName}-${uniqueSuffix}${extension}`;
     const filepath = path.join(uploadDir, filename);
 
     console.log(`[upload-api] Attempting to save file: ${filename} to ${filepath}`);
 
     // 6. Save the file to the filesystem using streams for efficiency
+    let writableStream: Writable | null = null;
     try {
       // Convert the File stream to a Node.js readable stream if available
       const readableStream = file.stream(); // This is a ReadableStream (Web API)
@@ -87,20 +95,30 @@ export async function POST(req: NextRequest) {
       }
 
       // Create a Node.js writable stream to the destination file
-      const writableStream = createWriteStream(filepath); // Use Node.js createWriteStream
+      writableStream = createWriteStream(filepath); // Use Node.js createWriteStream
 
       // Pipe the data from the web stream to the Node.js stream
       console.log('[upload-api] Starting file stream pipeline...');
 
        // Important: Use pipeline from 'stream/promises' for async handling
        // Ensure the web stream is correctly adapted if needed (often works directly)
-      await pipeline(readableStream as any, writableStream); // Cast readableStream if necessary, potential type mismatch
+       // We need to cast the ReadableStream<Uint8Array> to NodeJS.ReadableStream
+       // A simple cast `as any` might work in many environments, but explicit conversion is safer if needed.
+       // For now, let's assume the environments are compatible enough.
+      await pipeline(readableStream as unknown as NodeJS.ReadableStream, writableStream);
 
       console.log(`[upload-api] File saved successfully via pipeline: ${filename}`);
     } catch (saveError: any) {
       console.error(`[upload-api] Error saving file ${filename} during pipeline:`, saveError);
       // Attempt to clean up partially written file if save fails
       try {
+        // Ensure stream is closed before unlinking
+        if (writableStream && !writableStream.closed) {
+          await new Promise<void>((resolve, reject) => {
+            writableStream!.end(() => resolve());
+            writableStream!.on('error', reject); // Handle potential error during end
+          });
+        }
         await fs.unlink(filepath);
         console.log(`[upload-api] Cleaned up partially written file: ${filename}`);
       } catch (cleanupError) {
@@ -130,10 +148,7 @@ export async function POST(req: NextRequest) {
     let statusCode = 500;
 
     // Check for specific configuration errors thrown earlier
-    if (error.message?.includes('Could not create upload directory')) {
-         errorMessage = error.message; // Use the detailed message from ensureUploadDirExists
-         statusCode = 500; // Configuration error
-     } else if (error.message?.includes('Could not access upload directory')) {
+    if (error.message?.includes('Could not create') || error.message?.includes('Could not access') || error.message?.includes('permission denied')) {
          errorMessage = error.message; // Use the detailed message from ensureUploadDirExists
          statusCode = 500; // Configuration error
      } else if (error.code === 'ENOENT') { // General file system error
