@@ -417,7 +417,7 @@ export default function Home() {
              height={40} // Adjust height as needed
              className="object-contain" // Maintain aspect ratio
            />
-           <h1 className="text-3xl font-bold text-primary">College Notifier</h1>
+           <h1 className="text-3xl font-bold text-primary">Notice Board</h1> {/* Changed heading */}
         </div>
 
         {/* Right side controls: Date/Time and Theme Toggle */}

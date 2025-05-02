@@ -6,9 +6,9 @@ import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
 const inter = Inter({ subsets: ['latin'] });
 
-// Updated metadata to include icons
+// Updated metadata to include icons and new title
 export const metadata: Metadata = {
-  title: 'College Notifier',
+  title: 'Notice Board', // Changed title
   description: 'Displays notices from a college site.',
   icons: {
     icon: '/logo.png', // Link to the logo in the public folder
