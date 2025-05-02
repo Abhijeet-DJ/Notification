@@ -17,19 +17,18 @@ async function uploadFileAndGetUrl(file: File): Promise<string> {
   await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
   // For now, return a placeholder URL based on the file type - THIS IS NOT FUNCTIONAL for viewing
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
-      return `https://picsum.photos/seed/${encodeURIComponent(file.name)}/400/300`; // Placeholder image URL
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
+      // Use picsum for placeholder images
+      return `https://picsum.photos/seed/${encodeURIComponent(file.name)}/400/300`;
   } else if (extension === 'pdf') {
-      // You might need a specific PDF viewer or a way to serve static files
-      // For demo, maybe link to a generic dummy PDF online
-      return `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`; // Placeholder PDF
-  } else if (['mp4', 'webm', 'mov'].includes(extension)) {
-       // Need a video hosting solution or serve static files
-       // Placeholder video - might not work depending on browser support/codecs
-       return `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4`; // Placeholder video
+      // Using a dummy PDF link for placeholder
+      return `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
+  } else if (['mp4', 'webm', 'mov', 'ogg'].includes(extension)) {
+       // Using a placeholder video link
+       return `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4`;
   }
-  // Fallback placeholder if type is unknown
-  return `/uploads/placeholder-${encodeURIComponent(file.name)}`;
+  // Fallback placeholder if type is unknown or not supported for direct viewing
+  return `/uploads/placeholder-${encodeURIComponent(file.name)}`; // Represents a path, not a direct viewable URL
 }
 // --- End Placeholder ---
 
@@ -48,7 +47,7 @@ const formDataSchema = z.object({
       message: "Priority must be between 1 and 5",
   }).default("3"),
   content: z.string().optional(),
-  // Expect 'file' object from FormData
+  // Expect 'file' object from FormData which should be a single File instance
   file: z.instanceof(File, { message: "File upload is required." })
          .refine(file => file.size <= MAX_FILE_SIZE, `Max file size is 10MB.`)
          .optional(),
@@ -60,7 +59,7 @@ const formDataSchema = z.object({
     }
     // Require file if type is not text
     if (data.noticeType !== 'text') {
-        return !!data.file;
+        return !!data.file; // Check if the File object exists
     }
     return true;
 }, {
@@ -102,15 +101,12 @@ async function connectToDatabase(): Promise<Db> {
   try {
     await client.connect();
     console.log("Connected to MongoDB for addNotice");
-    // Return the Db instance directly
     const db = client.db(dbName);
-     // Store client instance on the Db object to close it later
-    (db as any)._client = client;
+    (db as any)._client = client; // Store client instance on the Db object to close it later
     return db;
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
-    // Close client if connection failed during db selection
-    await client.close();
+    await client.close(); // Close client if connection failed
     throw error;
   }
 }
@@ -126,25 +122,25 @@ async function closeDatabaseConnection(db: Db) {
 export async function addNotice(formData: FormData): Promise<{ success: boolean; error?: string }> {
   let db: Db | null = null;
   try {
-    // Parse form data - Note: files need special handling if not using a library
-    const rawData = Object.fromEntries(formData.entries());
-
-    // Separate file from other data for validation
-    const file = formData.get('file') as File | null;
-    const otherData = { ...rawData };
-    delete otherData.file; // Remove file entry for standard Zod parsing
-
-     // Manually add the file back for schema validation if it exists
-    const dataToValidate = {
-      ...otherData,
-      ...(file && file.size > 0 && { file: file }) // Add file object only if it's a valid file
+    // Extract data from FormData
+    const rawData = {
+        title: formData.get('title') as string,
+        noticeType: formData.get('noticeType') as 'text' | 'pdf' | 'image' | 'video',
+        priority: formData.get('priority') as string,
+        content: formData.get('content') as string | undefined,
+        file: formData.get('file') as File | null, // Get the file object
+        fileName: formData.get('fileName') as string | undefined,
     };
 
+    // Prepare data for validation, ensuring file is only included if it's a valid File object
+    const dataToValidate = {
+      ...rawData,
+      file: rawData.file && rawData.file instanceof File && rawData.file.size > 0 ? rawData.file : undefined,
+    };
 
     console.log("Data being validated:", dataToValidate);
 
     const validatedData = formDataSchema.safeParse(dataToValidate);
-
 
     if (!validatedData.success) {
       console.error("Validation errors:", validatedData.error.format());
@@ -156,7 +152,7 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
 
     let uploadedFileUrl = '';
 
-    // Handle file upload if it's not a text notice
+    // Handle file upload if it's not a text notice and a file was validated
     if (noticeType !== 'text' && validatedFile) {
         try {
             uploadedFileUrl = await uploadFileAndGetUrl(validatedFile); // Use the placeholder
@@ -170,17 +166,24 @@ export async function addNotice(formData: FormData): Promise<{ success: boolean;
          return { success: false, error: 'File is required for non-text notices.' };
     }
 
+    // Determine content type specifically for DB storage, primarily for text.
+    // For file types, the imageUrl implies the type.
+    let dbContentType: 'text' | 'pdf' | 'image' | 'video' = noticeType;
 
-    // Construct the new notice object
+    // Construct the new notice object for the database
     const newNotice = {
       title,
-      content: noticeType === 'text' ? (content || '') : '', // Only store content for text
-      imageUrl: uploadedFileUrl, // Store the URL obtained from upload/placeholder
-      priority,
+      // Store content only if it's explicitly a text notice
+      content: noticeType === 'text' ? (content || '') : '',
+      // Store the URL obtained from upload/placeholder if it's not a text notice
+      imageUrl: noticeType !== 'text' ? uploadedFileUrl : '',
+      priority, // Store the numeric priority
       createdBy: 'admin_interface', // Placeholder user
       date: new Date(),
-      originalFileName: noticeType !== 'text' ? (fileName || validatedFile?.name || '') : '', // Store original file name
-      // contentType is now derived in getCollegeNotices based on imageUrl
+      // Store original file name only for file-based notices
+      originalFileName: noticeType !== 'text' ? (fileName || validatedFile?.name || '') : '',
+      // Explicitly store the intended content type based on the form selection
+      contentType: dbContentType,
     };
 
     console.log('Attempting to add new notice to DB:', newNotice);

@@ -38,8 +38,8 @@ const noticeSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   noticeType: z.enum(['text', 'pdf', 'image', 'video']),
   content: z.string().optional(),
-  // Use 'file' field for file input
-  file: z.any()
+  // Use 'file' field for file input. Expect a FileList from the input.
+  file: z.instanceof(typeof window !== 'undefined' ? FileList : Object)
     .refine(
       (files) => files?.[0]?.size <= MAX_FILE_SIZE,
       `Max file size is 10MB.`
@@ -57,26 +57,27 @@ const noticeSchema = z.object({
     }
     // Require file if type is not text
     if (data.noticeType !== 'text') {
-        return !!data.file?.[0]; // File must exist
+        return !!data.file?.[0]; // File must exist in the FileList
     }
     return true; // Should not happen if logic above is correct
 }, {
-    // Custom error message based on the type
     message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
-    // Path helps associate the error with relevant fields, though refine affects the whole object
     path: ["content", "file"],
 }).refine(data => {
     // Validate file type based on noticeType
-    if (data.noticeType === 'image' && data.file?.[0]) {
-        return ACCEPTED_IMAGE_TYPES.includes(data.file[0].type);
+    if (data.file?.[0]) { // Check if file exists before accessing type
+      const fileType = data.file[0].type;
+      if (data.noticeType === 'image' && !ACCEPTED_IMAGE_TYPES.includes(fileType)) {
+          return false;
+      }
+      if (data.noticeType === 'pdf' && !ACCEPTED_PDF_TYPES.includes(fileType)) {
+          return false;
+      }
+      if (data.noticeType === 'video' && !ACCEPTED_VIDEO_TYPES.includes(fileType)) {
+          return false;
+      }
     }
-    if (data.noticeType === 'pdf' && data.file?.[0]) {
-        return ACCEPTED_PDF_TYPES.includes(data.file[0].type);
-    }
-    if (data.noticeType === 'video' && data.file?.[0]) {
-        return ACCEPTED_VIDEO_TYPES.includes(data.file[0].type);
-    }
-    return true; // Pass if text notice or file type matches
+    return true; // Pass if text notice or file type matches or no file provided yet
 }, {
     message: "Invalid file type selected for the chosen notice type.",
     path: ["file"],
@@ -101,6 +102,7 @@ export default function AddNoticeForm() {
   });
 
   const noticeType = form.watch('noticeType');
+  const fileRef = form.register("file"); // Register file input
 
   async function onSubmit(values: NoticeFormData) {
     setIsLoading(true);
@@ -114,7 +116,7 @@ export default function AddNoticeForm() {
     if (values.noticeType === 'text') {
       formData.append('content', values.content || '');
     } else if (values.file?.[0]) {
-        // Append the file itself
+        // Append the file itself from the FileList
         formData.append('file', values.file[0]);
         formData.append('fileName', values.file[0].name); // Send original filename
     } else {
@@ -160,11 +162,11 @@ export default function AddNoticeForm() {
   }
 
    // Log form errors for debugging
-   // React.useEffect(() => {
-   //   if (form.formState.errors && Object.keys(form.formState.errors).length > 0) {
-   //     console.log("Form validation errors:", form.formState.errors);
-   //   }
-   // }, [form.formState.errors]);
+   React.useEffect(() => {
+     if (form.formState.errors && Object.keys(form.formState.errors).length > 0) {
+       console.log("Form validation errors:", form.formState.errors);
+     }
+   }, [form.formState.errors]);
 
   return (
     <Form {...form}>
@@ -238,23 +240,20 @@ export default function AddNoticeForm() {
           <FormField
             control={form.control}
             name="file"
-            render={({ field: { value, onChange, ...fieldProps } }) => ( // Destructure field correctly
+            render={({ field }) => ( // Removed unnecessary destructuring
               <FormItem>
                 <FormLabel>
                    Upload {noticeType === 'pdf' ? 'PDF' : noticeType === 'image' ? 'Image' : 'Video'}
                 </FormLabel>
                 <FormControl>
                    <Input
-                     {...fieldProps} // Spread remaining props
                      type="file"
                      accept={
                        noticeType === 'pdf' ? ACCEPTED_PDF_TYPES.join(',') :
                        noticeType === 'image' ? ACCEPTED_IMAGE_TYPES.join(',') :
                        noticeType === 'video' ? ACCEPTED_VIDEO_TYPES.join(',') : ''
                      }
-                     onChange={(event) =>
-                       onChange(event.target.files) // Use RHF's onChange
-                     }
+                     {...fileRef} // Use the registered ref here
                    />
                 </FormControl>
                  <FormDescription>

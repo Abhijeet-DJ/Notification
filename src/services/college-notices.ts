@@ -16,7 +16,7 @@ export interface CollegeNotice {
   date: string; // ISO date string
   originalFileName?: string; // Original name of the uploaded file
   __v?: number; // Version key, optional
-  // Derived property, not directly from API but essential for filtering/rendering
+  // Content type stored directly in the database based on form submission
   contentType: 'text' | 'pdf' | 'image' | 'video';
 }
 
@@ -61,7 +61,7 @@ async function closeDatabaseConnection(db: Db) {
 
 /**
  * Asynchronously retrieves college notices from the MongoDB database.
- * Derives contentType based on imageUrl or content presence.
+ * Uses the 'contentType' stored in the database.
  * @returns A promise that resolves to an array of CollegeNotice objects.
  */
 export async function getCollegeNotices(): Promise<CollegeNotice[]> {
@@ -70,43 +70,29 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
     db = await connectToDatabase();
     const collection = db.collection('notices');
 
-    const noticesFromDb = await collection.find({}).toArray();
+    // Fetch notices sorted by priority then date from the database itself
+    const noticesFromDb = await collection.find({})
+                                        .sort({ priority: 1, date: -1 })
+                                        .toArray();
     console.log("Fetched notices from DB:", noticesFromDb.length);
 
     const validatedNotices: CollegeNotice[] = noticesFromDb.map((item: any) => {
-      let contentType: 'text' | 'pdf' | 'image' | 'video' = 'text'; // Default to text
+      // Directly use the contentType stored in the database if it's valid, otherwise default to 'text'
+      const validTypes = ['text', 'pdf', 'image', 'video'];
+      const dbContentType = item.contentType && validTypes.includes(item.contentType) ? item.contentType : 'text';
 
-      const imageUrl = item.imageUrl && typeof item.imageUrl === 'string' ? item.imageUrl.trim() : '';
-      const fileExtension = imageUrl.split('.').pop()?.toLowerCase() || '';
-      const originalFileName = item.originalFileName || '';
-      const originalExtension = originalFileName.split('.').pop()?.toLowerCase() || '';
-
-      if (imageUrl) {
-          // Prioritize checking based on the URL extension first
-         if (['pdf'].includes(fileExtension) || ['pdf'].includes(originalExtension)) {
-            contentType = 'pdf';
-         } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExtension) || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(originalExtension)) {
-            contentType = 'image';
-         } else if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg'].includes(fileExtension) || ['mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg'].includes(originalExtension)) {
-            contentType = 'video';
-          } else if (item.content && typeof item.content === 'string' && item.content.trim()) {
-             // If URL doesn't match known file types, but content exists, treat as text
-             contentType = 'text';
-          } else {
-              // If URL doesn't match and no content, default to text (maybe log a warning)
-               console.warn(`Notice "${item.title}" has an unrecognized imageUrl/extension and no content. Defaulting to 'text'. URL: ${imageUrl}, Original Name: ${originalFileName}`);
-              contentType = 'text';
-          }
-      } else if (item.content && typeof item.content === 'string' && item.content.trim()) {
-        // If no imageUrl, but content exists, it's text
-        contentType = 'text';
-      } else {
-         // If neither imageUrl nor content, default to text
-         console.warn(`Notice "${item.title}" has no imageUrl or content. Defaulting to 'text'.`);
-         contentType = 'text';
+      // If it's supposed to be a file type but imageUrl is missing, treat as text (or log warning)
+      if (dbContentType !== 'text' && !item.imageUrl) {
+          console.warn(`Notice "${item.title}" is type '${dbContentType}' but lacks an imageUrl. Treating as text.`);
+          // Potentially set dbContentType = 'text'; here if you prefer
+      }
+      // If it's text type but content is missing, log warning
+      if (dbContentType === 'text' && !(item.content && typeof item.content === 'string' && item.content.trim())) {
+          console.warn(`Notice "${item.title}" is type 'text' but lacks content.`);
       }
 
-      console.log(`Notice: ${item.title}, ImageUrl: ${imageUrl}, Content: ${!!item.content}, Derived Type: ${contentType}`);
+
+      console.log(`Notice: ${item.title}, DB ContentType: ${item.contentType}, Validated Type: ${dbContentType}`);
 
 
       let isoDate: string;
@@ -123,26 +109,26 @@ export async function getCollegeNotices(): Promise<CollegeNotice[]> {
         _id: item._id ? item._id.toString() : `generated_${Math.random()}`,
         title: item.title || 'Untitled Notice',
         content: item.content || '',
-        imageUrl: imageUrl, // Use the potentially empty string
+        imageUrl: item.imageUrl || '', // Use the potentially empty string
         priority: typeof item.priority === 'number' ? item.priority : 3,
         createdBy: item.createdBy || 'Unknown',
         date: isoDate,
-        originalFileName: originalFileName,
+        originalFileName: item.originalFileName || '',
         __v: item.__v,
-        contentType: contentType, // Set the derived content type
+        contentType: dbContentType, // Use the validated content type
       };
     }).filter((notice): notice is CollegeNotice => notice !== null);
 
 
-    // Sort notices primarily by priority (ascending) and secondarily by date (descending)
-    validatedNotices.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
+    // Sorting is now handled by the database query, but you could re-sort here if needed
+    // validatedNotices.sort((a, b) => {
+    //   if (a.priority !== b.priority) {
+    //     return a.priority - b.priority;
+    //   }
+    //   return new Date(b.date).getTime() - new Date(a.date).getTime();
+    // });
 
-    console.log("Validated and sorted notices:", validatedNotices.length);
+    console.log("Validated notices:", validatedNotices.length);
     return validatedNotices;
 
   } catch (error) {
