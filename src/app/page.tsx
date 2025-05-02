@@ -50,10 +50,10 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
     // Determine animation duration based on type
     let animationDuration: number;
-    if (isImageNotices) {
-      animationDuration = 20000; // 20 seconds for images
-    } else {
-      animationDuration = 10000; // 10 seconds for others (PDF, Video, Text pagination)
+    if (isImageNotices || isVideoNotices) {
+      animationDuration = 20000; // 20 seconds for images/videos
+    } else { // Includes Text pagination and PDF change
+      animationDuration = 10000; // 10 seconds for others
     }
 
      console.log(`[DEBUG][NoticeBlock][${title}] Starting item change animation: TotalPages=${totalPages}, Duration=${animationDuration}ms`);
@@ -120,37 +120,55 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
        const scrollStep = 1; // Pixels to scroll per interval
        const scrollInterval = 100; // Milliseconds between scroll steps (adjust for speed)
-       console.log(`[DEBUG][NoticeBlock][${title}] Starting PDF scroll animation: Interval=${scrollInterval}ms`);
+       const pdfDisplayDuration = 20000; // Total time to display/scroll one PDF
+       let timeElapsed = 0;
+       let direction = 'down'; // Track scroll direction
+       console.log(`[DEBUG][NoticeBlock][${title}] Starting PDF scroll animation: Interval=${scrollInterval}ms, DisplayDuration=${pdfDisplayDuration}ms`);
 
        pdfScrollIntervalRef.current = setInterval(() => {
+           timeElapsed += scrollInterval;
            if (pdfIframeRef.current && pdfIframeRef.current.contentWindow) {
                try {
-                   // Access iframe content window and body - potential cross-origin issues handled in catch
                    const iframeWindow = pdfIframeRef.current.contentWindow;
                    const iframeDocBody = iframeWindow.document.body;
                    const iframeScrollHeight = iframeDocBody.scrollHeight;
-                   const iframeClientHeight = iframeWindow.innerHeight; // Use innerHeight of contentWindow
-                   let currentScrollTop = iframeWindow.scrollY; // Use scrollY of contentWindow
+                   const iframeClientHeight = iframeWindow.innerHeight;
+                   let currentScrollTop = iframeWindow.scrollY;
 
-                   if (iframeScrollHeight > iframeClientHeight) { // Check if scrolling is needed
-                       if (currentScrollTop + iframeClientHeight >= iframeScrollHeight - 5) { // Check if near the bottom (added tolerance)
-                           // Reached bottom, scroll back to top smoothly
-                           console.log(`[DEBUG][NoticeBlock][${title}] PDF reached bottom, scrolling to top.`);
-                           iframeWindow.scrollTo({ top: 0, behavior: 'smooth' });
-                       } else {
-                           // Scroll down by step
-                           iframeWindow.scrollBy({ top: scrollStep, behavior: 'smooth' });
+                   if (iframeScrollHeight > iframeClientHeight) {
+                       if (direction === 'down') {
+                           if (currentScrollTop + iframeClientHeight >= iframeScrollHeight - 5) {
+                               direction = 'up'; // Change direction to scroll up
+                               console.log(`[DEBUG][NoticeBlock][${title}] PDF reached bottom, changing direction to UP.`);
+                           } else {
+                               iframeWindow.scrollBy({ top: scrollStep, behavior: 'smooth' });
+                           }
+                       } else { // direction === 'up'
+                           if (currentScrollTop <= 5) {
+                               direction = 'down'; // Change direction to scroll down
+                               console.log(`[DEBUG][NoticeBlock][${title}] PDF reached top, changing direction to DOWN.`);
+                           } else {
+                               iframeWindow.scrollBy({ top: -scrollStep, behavior: 'smooth' });
+                           }
                        }
-                   } else {
-                       // Content fits, stop interval if running (optional, might restart if content loads slowly)
-                       // console.log(`[DEBUG][NoticeBlock][${title}] PDF content fits, no scroll needed.`);
-                       // if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
                    }
+
+                   // Check if display duration exceeded, then change the PDF via itemChangeInterval
+                   if (timeElapsed >= pdfDisplayDuration) {
+                       console.log(`[DEBUG][NoticeBlock][${title}] PDF display duration reached. Item change should trigger.`);
+                       // The itemChangeInterval will handle changing the PDF page.
+                       // We can stop this interval or let the useEffect cleanup handle it.
+                       if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
+                   }
+
                } catch (error) {
-                   // Likely a cross-origin error if PDF is not from the same origin
-                   console.warn(`[DEBUG][NoticeBlock][${title}] Could not access PDF iframe content, possibly due to cross-origin restrictions. PDF scrolling disabled.`, error);
-                   if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current); // Stop trying
+                   console.warn(`[DEBUG][NoticeBlock][${title}] Could not access PDF iframe content for scrolling. Scrolling disabled.`, error);
+                   if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
                }
+           } else {
+               console.warn(`[DEBUG][NoticeBlock][${title}] PDF iframe or contentWindow not ready for scrolling.`);
+               // If the iframe isn't ready, stop trying to prevent infinite warnings.
+               // if (pdfScrollIntervalRef.current) clearInterval(pdfScrollIntervalRef.current);
            }
        }, scrollInterval);
    };
@@ -229,11 +247,15 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
              // Display logic for PDF, Image, Video (shows one at a time)
              currentNotices.length > 0 && (
                <div className="transition-opacity duration-500 ease-in-out h-full" key={currentNotices[0]._id}> {/* Add key for transition */}
-                 <div className="flex flex-col space-y-2 h-full justify-start items-center text-center"> {/* Changed justify-center to justify-start */}
-                   <p className="font-medium px-2 flex-shrink-0">{currentNotices[0].title}</p> {/* Ensure title doesn't cause overflow */}
+                 {/* Changed justify-center to justify-start and removed space-y-2 */}
+                 <div className="flex flex-col h-full justify-start items-center text-center">
+                   {/* Removed Title and Date display for PDF/Image/Video */}
+                   {/*
+                   <p className="font-medium px-2 flex-shrink-0">{currentNotices[0].title}</p>
                    <p className="text-sm text-muted-foreground flex-shrink-0">
                       {new Date(currentNotices[0].date).toISOString().split('T')[0]}
                    </p>
+                   */}
                    {currentNotices[0].contentType === 'pdf' ? (
                       // Embed PDF using iframe
                       // Container already has overflow-hidden, which should hide the iframe's scrollbar if possible
@@ -244,14 +266,21 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                            src={`${currentNotices[0].imageUrl}#toolbar=0&navpanes=0&scrollbar=0`} // Attempt to hide toolbar/scrollbar via URL fragment
                            title={currentNotices[0].title}
                            className="w-full h-full border-0 rounded-md"
+                           style={{ scrollbarWidth: 'none' }} // Hide scrollbar for Firefox
                            onError={(e) => console.error(`[DEBUG][NoticeBlock][${title}] Error loading PDF:`, currentNotices[0].imageUrl, e)} // Add error handling
                            // sandbox="allow-scripts allow-same-origin" // Use cautiously if needed - might break scrolling
                            onLoad={() => {
                                console.log(`[DEBUG][NoticeBlock][${title}] PDF Iframe loaded: ${currentNotices[0].imageUrl}`);
-                               // Optionally restart scroll animation on load if needed, though useEffect should handle it
-                               // startPdfScrollAnimation();
+                               // Restart scroll animation on load
+                               startPdfScrollAnimation();
                            }}
                          />
+                         {/* CSS to hide scrollbar in WebKit browsers (Chrome, Safari) */}
+                         <style>{`
+                           iframe::-webkit-scrollbar {
+                             display: none;
+                           }
+                         `}</style>
                       </div>
                    ) : currentNotices[0].contentType === 'image' ? (
                      // Adjusted image container and image classes
