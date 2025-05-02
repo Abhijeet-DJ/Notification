@@ -21,7 +21,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const textScrollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for text scrolling animation
-  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (Video/PDF Pairs/Text Pages)
+  const itemChangeIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval for changing items (PDF Pairs/Text Pages) - Excludes Video
 
   const totalItems = notices.length;
   // Adjusted itemsPerPage logic: Text: 5, PDF/Image: All (handled by belt), Video: 1
@@ -36,22 +36,21 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
    const shouldPdfAnimate = isPdfNotices && totalPages > 1;
 
 
-  // Function to start the animation interval for changing items/pages (Video/Text Pages/PDF Pairs)
+  // Function to start the animation interval for changing items/pages (Text Pages/PDF Pairs)
+  // **Excludes Video**
   const startItemChangeAnimation = () => {
     if (itemChangeIntervalRef.current) {
       clearInterval(itemChangeIntervalRef.current);
     }
 
-    // Don't start if it's image notices or only one page/pair or no notices for other types
-    if (isImageNotices || totalPages <= 1) {
+    // Don't start if it's image notices, video notices, or only one page/pair or no notices for other types
+    if (isImageNotices || isVideoNotices || totalPages <= 1) {
       return;
     }
 
     // Determine animation duration based on type
     let animationDuration: number;
-    if (isVideoNotices) {
-      animationDuration = 20000; // 20 seconds for videos
-    } else if (isPdfNotices) {
+    if (isPdfNotices) {
       animationDuration = 20000; // 20 seconds for PDF pairs
     }
     else { // Includes Text pagination
@@ -94,20 +93,22 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                   behavior: 'smooth',
                });
 
+               // Wait for the scroll down to likely finish before scrolling up
                setTimeout(() => {
                   if (containerRef.current) {
                       console.log(`[DEBUG][NoticeBlock][${title}] Scrolling text back to top.`);
+                     // Use instantaneous scroll to reset for the next smooth scroll down
                      containerRef.current.scrollTo({
                         top: 0,
-                        behavior: 'smooth',
+                        behavior: 'auto', // Change to 'auto' for instant reset
                      });
                   }
-               }, scrollDuration / 2);
+               }, scrollDuration - 500); // Scroll up slightly before the interval restarts
             } else {
                 console.log(`[DEBUG][NoticeBlock][${title}] Text content fits, no scroll needed.`);
             }
          }
-      }, scrollDuration);
+      }, scrollDuration); // Interval duration remains the same
    };
 
 
@@ -119,7 +120,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
     if (textScrollIntervalRef.current) clearInterval(textScrollIntervalRef.current);
 
     // Start appropriate animations
-    startItemChangeAnimation(); // Handles changing items for video/text pages/PDF pairs
+    startItemChangeAnimation(); // Handles changing items for text pages/PDF pairs (NOT Video)
     startTextScrollAnimation(); // Handles scrolling within the text block
 
     // Cleanup function to clear intervals on component unmount or before effect runs again
@@ -145,6 +146,22 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
 
    const hasNotices = notices?.length > 0;
 
+   // Handler for when a video finishes playing
+   const handleVideoEnded = () => {
+     if (isVideoNotices && totalItems > 1) { // Only swap if there's more than one video
+       console.log(`[DEBUG][NoticeBlock][Video Notices] Video ended, swapping to next.`);
+       setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
+     } else if (isVideoNotices && totalItems === 1) {
+         // If only one video, restart it
+         const videoElement = containerRef.current?.querySelector('video');
+         if (videoElement) {
+             console.log(`[DEBUG][NoticeBlock][Video Notices] Restarting single video.`);
+             videoElement.currentTime = 0;
+             videoElement.play();
+         }
+     }
+   };
+
 
   return (
     <Card className="bg-content-block shadow-md rounded-lg overflow-hidden flex flex-col h-full">
@@ -154,7 +171,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
       {/* Adjust CardContent padding: Remove padding for image belt, adjust PDF */}
       <CardContent
           className={`flex-grow overflow-hidden ${isImageNotices ? 'p-0' : isPdfNotices ? 'p-0' : isTextNotices ? 'p-4' : 'p-1 md:p-2'} min-h-0`}
-          ref={containerRef} // Ref still used for text scrolling
+          ref={containerRef} // Ref still used for text scrolling and video handling
       >
          {hasNotices ? (
            isTextNotices ? (
@@ -265,13 +282,14 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                  <div className="flex flex-col h-full justify-start items-center text-center">
                       <div className="flex-grow w-full h-full flex items-center justify-center overflow-hidden">
                        <video
-                         key={currentNotices[0].imageUrl}
+                         key={currentNotices[0].imageUrl} // Use URL as key to force remount on change if needed
                          src={currentNotices[0].imageUrl}
                          controls
                          autoPlay
-                         muted
-                         loop={totalItems === 1} // Loop only if it's the only video
+                         muted // Keep muted for autoplay compliance
+                         // loop={totalItems === 1} // Remove loop, handle via onEnded
                          className="max-w-full max-h-full rounded-md"
+                         onEnded={handleVideoEnded} // Call handler when video finishes
                          onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)}
                        />
                       </div>
