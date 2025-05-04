@@ -7,7 +7,7 @@ import { Writable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs'; // Import createWriteStream for Node.js streams
 
-// Ensure the upload directory exists
+// Ensure the upload directory exists within the 'public' folder
 const uploadDir = path.join(process.cwd(), 'public', 'uploads');
 const ensureUploadDirExists = async () => {
   console.log(`[ensureUploadDirExists] Checking/Creating directory: ${uploadDir}`);
@@ -41,7 +41,7 @@ const ensureUploadDirExists = async () => {
   }
 };
 
-// Define file size limit (Update to 45MB)
+// Define file size limit (45MB)
 const MAX_FILE_SIZE = 45 * 1024 * 1024; // 45 MB
 
 export async function POST(req: NextRequest) {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Sanitize filename slightly (replace spaces, etc.) - more robust sanitization might be needed
     const baseName = path.basename(file.name, extension).replace(/[^a-zA-Z0-9_.-]/g, '_'); // Allow dots and hyphens
     const filename = `${baseName}-${uniqueSuffix}${extension}`;
-    const filepath = path.join(uploadDir, filename);
+    const filepath = path.join(uploadDir, filename); // Correct: Save inside public/uploads
 
     console.log(`[upload-api] Attempting to save file: ${filename} to ${filepath}`);
 
@@ -108,9 +108,20 @@ export async function POST(req: NextRequest) {
        // For now, let's assume the environments are compatible enough.
       await pipeline(readableStream as unknown as NodeJS.ReadableStream, writableStream);
 
-      console.log(`[upload-api] File saved successfully via pipeline: ${filename}`);
+      console.log(`[upload-api] File stream pipeline finished for: ${filename}`);
+
+      // **Add verification step**
+      try {
+          await fs.access(filepath, fs.constants.R_OK); // Check if file exists and is readable
+          console.log(`[upload-api] File verification successful: ${filepath} exists and is readable.`);
+      } catch (verifyError: any) {
+          console.error(`[upload-api] File verification failed after saving: ${filepath}`, verifyError);
+          // Optionally, attempt cleanup or throw a specific error
+          throw new Error(`File saved but verification failed: ${verifyError.message}`);
+      }
+
     } catch (saveError: any) {
-      console.error(`[upload-api] Error saving file ${filename} during pipeline:`, saveError);
+      console.error(`[upload-api] Error saving or verifying file ${filename}:`, saveError);
       // Attempt to clean up partially written file if save fails
       try {
         // Ensure stream is closed before unlinking
@@ -127,13 +138,13 @@ export async function POST(req: NextRequest) {
         console.error(`[upload-api] Error cleaning up file ${filename} after save failure:`, cleanupError);
       }
        // Return a more specific error
-      return NextResponse.json({ success: false, error: `Failed to save uploaded file. Server error during write. Details: ${saveError.message}` }, { status: 500 });
+      return NextResponse.json({ success: false, error: `Failed to save or verify uploaded file. Server error during write/verification. Details: ${saveError.message}` }, { status: 500 });
     }
 
-    // 7. Construct the public URL
-    const fileUrl = `/uploads/${filename}`; // Public access path relative to the 'public' directory
+    // 7. Construct the public URL - Must be relative to the public folder root
+    const fileUrl = `/uploads/${filename}`; // Correct: Public access path relative to the 'public' directory
 
-    console.log(`[upload-api] File uploaded successfully. URL: ${fileUrl}, Original Filename: ${file.name}`);
+    console.log(`[upload-api] File uploaded and verified successfully. URL: ${fileUrl}, Original Filename: ${file.name}`);
     // Return original name too, useful for the action saving to DB
     return NextResponse.json({ success: true, url: fileUrl, originalFilename: file.name });
 
@@ -163,9 +174,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: errorMessage }, { status: statusCode });
   }
 }
-
-// Add a GET handler for testing or simple checks if needed (optional)
-// export async function GET(req: NextRequest) {
-//   return NextResponse.json({ message: 'Upload API is active. Use POST to upload files.' });
-// }
-

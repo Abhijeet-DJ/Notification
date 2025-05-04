@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -29,12 +28,12 @@ import { addNotice } from '@/app/actions/addNotice'; // Server Action
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress"; // Import Progress component
 
-// Helper to check file size (Update to 45MB)
+// Helper to check file size (45MB)
 const MAX_FILE_SIZE = 45 * 1024 * 1024; // 45 MB
 const MAX_FILE_SIZE_MB = MAX_FILE_SIZE / (1024 * 1024); // Calculate MB for messages
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
 const ACCEPTED_PDF_TYPES = ["application/pdf"];
-const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
+const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska"]; // Added common video types
 
 // Updated schema for the form itself (before upload)
 // 'file' is now optional in the base schema but required conditionally by refine
@@ -53,7 +52,8 @@ const formSchema = z.object({
 }).refine(data => {
     // Require content if type is text
     if (data.noticeType === 'text') {
-        return !!data.content?.trim(); // Content needs to be non-empty for text notices
+        // Allow text notices with just a title
+        return true;
     }
     // Require file if type is not text (this refine checks if FileList exists and has a file)
     if (data.noticeType !== 'text') {
@@ -63,48 +63,61 @@ const formSchema = z.object({
 }, {
     message: "Content is required for text notices, and a file upload is required for PDF, image, or video notices.",
     path: ["content", "file"], // Point to both fields
-}).refine(data => {
+}).refine((data, ctx) => { // Pass ctx to use setError
     // Validate file properties if a file exists in the FileList
     if (data.noticeType !== 'text' && data.file?.[0]) {
         const file = data.file[0];
-        console.log('[Schema Refine] Validating file:', file.name, file.size, file.type); // Debug log for file validation
+        // console.log('[Schema Refine] Validating file:', file.name, file.size, file.type); // Debug log for file validation
         // Check size
         if (file.size > MAX_FILE_SIZE) {
-           console.error(`[Schema Refine] File too large: ${file.size}`);
-           // Update error message to reflect 45MB limit
-           form.setError("file", { message: `Max file size is ${MAX_FILE_SIZE_MB}MB. Yours is ${(file.size / (1024*1024)).toFixed(2)}MB` });
-           return false;
+           // console.error(`[Schema Refine] File too large: ${file.size}`);
+           ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Max file size is ${MAX_FILE_SIZE_MB}MB. Yours is ${(file.size / (1024*1024)).toFixed(2)}MB`,
+                path: ["file"],
+           });
+           return false; // Explicitly return false on failure
         }
         // Check type based on noticeType
         const fileType = file.type;
         if (data.noticeType === 'image' && !ACCEPTED_IMAGE_TYPES.includes(fileType)) {
-            console.error(`[Schema Refine] Invalid image type: ${fileType}`);
-            form.setError("file", { message: `Invalid file type. Expected one of: ${ACCEPTED_IMAGE_TYPES.join(', ')}` });
+            // console.error(`[Schema Refine] Invalid image type: ${fileType}`);
+             ctx.addIssue({
+                 code: z.ZodIssueCode.custom,
+                 message: `Invalid file type for image. Expected one of: ${ACCEPTED_IMAGE_TYPES.join(', ')}. Got: ${fileType || 'unknown'}`,
+                 path: ["file"],
+            });
             return false;
         }
         if (data.noticeType === 'pdf' && !ACCEPTED_PDF_TYPES.includes(fileType)) {
-            console.error(`[Schema Refine] Invalid PDF type: ${fileType}`);
-            form.setError("file", { message: `Invalid file type. Expected: ${ACCEPTED_PDF_TYPES.join(', ')}` });
+            // console.error(`[Schema Refine] Invalid PDF type: ${fileType}`);
+            ctx.addIssue({
+                 code: z.ZodIssueCode.custom,
+                 message: `Invalid file type for PDF. Expected: ${ACCEPTED_PDF_TYPES.join(', ')}. Got: ${fileType || 'unknown'}`,
+                 path: ["file"],
+            });
             return false;
         }
         if (data.noticeType === 'video' && !ACCEPTED_VIDEO_TYPES.includes(fileType)) {
-             console.error(`[Schema Refine] Invalid video type: ${fileType}`);
-             form.setError("file", { message: `Invalid file type. Expected one of: ${ACCEPTED_VIDEO_TYPES.join(', ')}` });
+             // console.error(`[Schema Refine] Invalid video type: ${fileType}`);
+             ctx.addIssue({
+                 code: z.ZodIssueCode.custom,
+                 message: `Invalid file type for video. Expected one of: ${ACCEPTED_VIDEO_TYPES.join(', ')}. Got: ${fileType || 'unknown'}`,
+                 path: ["file"],
+            });
             return false;
         }
-         console.log('[Schema Refine] File validation passed.'); // Log success
+         // console.log('[Schema Refine] File validation passed.'); // Log success
     }
     return true; // Pass if text notice or file validation passes or no file yet
 }, {
     // This message might not be shown if specific errors are set using setError
-    message: "Invalid file size or type.",
-    path: ["file"],
+    // message: "Invalid file size or type.", // Removed generic message, rely on ctx.addIssue
+    // path: ["file"], // Removed generic path
 });
 
-type NoticeFormData = z.infer<typeof formSchema>;
 
-// Global form instance reference for refine function
-let form: any;
+type NoticeFormData = z.infer<typeof formSchema>;
 
 export default function AddNoticeForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -114,8 +127,7 @@ export default function AddNoticeForm() {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for the file input
 
-  // Assign the form instance globally (needed for refine function's setError)
-  form = useForm<NoticeFormData>({
+  const form = useForm<NoticeFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
@@ -228,14 +240,13 @@ export default function AddNoticeForm() {
          console.log('[onSubmit] File upload successful. URL:', imageUrl, 'Original Filename:', originalFileName);
     } else if (values.noticeType !== 'text') {
         console.warn('[onSubmit] Notice type requires a file, but no file was provided or found.');
-        // Consider adding a toast message here if this is an unexpected state
-        // toast({ title: "Missing File", description: `A file is required for ${values.noticeType} notices.`, variant: "destructive" });
-        // setIsLoading(false); // Maybe stop submission if file is strictly required but missing
-        // return;
+        // This check is redundant due to form validation, but good as a fallback
+        toast({ title: "Missing File", description: `A file is required for ${values.noticeType} notices.`, variant: "destructive" });
+        setIsLoading(false);
+        return;
     }
 
     // Prepare data for the server action
-    // Ensure content is explicitly set for text, and empty for others if not provided
     const noticeDataForAction = {
       title: values.title,
       noticeType: values.noticeType,
@@ -263,7 +274,8 @@ export default function AddNoticeForm() {
         }
         setUploadProgress(0); // Reset progress bar
       } else {
-         console.error('[onSubmit] Server action addNotice failed:', result.error);
+         // Log detailed error from server action
+         console.error('[onSubmit] Server action addNotice failed:', result.error, 'Details:', result.details);
         toast({
           title: "Error Adding Notice",
           description: result.error || "Failed to add notice. Please check the details.",
@@ -271,10 +283,11 @@ export default function AddNoticeForm() {
         });
       }
     } catch (error: any) {
-      console.error('[onSubmit] Error submitting notice to action:', error);
+      // Catch errors *calling* the server action (network, etc.)
+      console.error('[onSubmit] Error calling server action:', error);
       toast({
         title: "Submission Error",
-        description: error.message || "An unexpected error occurred while saving the notice.",
+        description: error.message || "An unexpected error occurred while submitting the notice.",
         variant: "destructive",
       });
     } finally {
@@ -320,7 +333,7 @@ export default function AddNoticeForm() {
             <FormItem>
               <FormLabel>Notice Type</FormLabel>
               <Select onValueChange={(value) => {
-                 console.log(`[Notice Type Change] Selected type: ${value}`); // Log type change
+                 // console.log(`[Notice Type Change] Selected type: ${value}`); // Log type change
                 field.onChange(value);
                 // Reset dependent fields when type changes
                 form.resetField('file', { defaultValue: undefined });
@@ -330,7 +343,7 @@ export default function AddNoticeForm() {
                     fileInputRef.current.value = ''; // Clear file input visually
                  }
                  // Re-validate relevant fields after type change
-                  console.log('[Notice Type Change] Triggering validation for content and file.');
+                  // console.log('[Notice Type Change] Triggering validation for content and file.');
                  form.trigger(['content', 'file']);
               }} defaultValue={field.value}>
                 <FormControl>
@@ -366,7 +379,7 @@ export default function AddNoticeForm() {
                   />
                 </FormControl>
                  <FormDescription>
-                   Required for text notices.
+                    Optional for text notices if title is provided.
                  </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -395,17 +408,17 @@ export default function AddNoticeForm() {
                      onBlur={onBlur}
                      onChange={(e) => {
                          const files = e.target.files;
-                         console.log('[File Input Change] Files selected:', files); // Log file selection
+                         // console.log('[File Input Change] Files selected:', files); // Log file selection
                          onChange(files); // Update RHF's state with FileList
                          if (files && files[0]) {
                            setSelectedFileName(files[0].name);
                            // Manually trigger validation for the file field after selection
-                           console.log('[File Input Change] Triggering file validation.');
+                           // console.log('[File Input Change] Triggering file validation.');
                            form.trigger("file");
                          } else {
                            setSelectedFileName(null);
                            // If no file is selected, trigger validation too
-                           console.log('[File Input Change] No file selected, triggering file validation.');
+                           // console.log('[File Input Change] No file selected, triggering file validation.');
                            form.trigger("file");
                          }
                       }}
@@ -413,7 +426,6 @@ export default function AddNoticeForm() {
                    />
                 </FormControl>
                  <FormDescription>
-                   {/* Update form description to reflect 45MB limit */}
                    {selectedFileName ? `Selected file: ${selectedFileName}` : `Upload the ${noticeType} file. Max size: ${MAX_FILE_SIZE_MB}MB.`}
                  </FormDescription>
                  {/* Display upload progress */}
@@ -461,4 +473,3 @@ export default function AddNoticeForm() {
     </Form>
   );
 }
-

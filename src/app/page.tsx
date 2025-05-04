@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -21,7 +22,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
   const isVideoNotices = title === "Video Notices";
   const [currentPage, setCurrentPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null); // Used for PDF scrolling now
+  const intervalRef = useRef<NodeJS.Timeout | null>(null); // Used for PDF/Image scrolling now
 
   const totalItems = notices.length;
   // Items per page logic: Text: All (handled by belt), PDF/Image: All (handled by belt), Video: 1
@@ -66,7 +67,7 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
          if (isTextNotices && shouldAnimateText) {
              // Text scrolling animation is handled by CSS, no interval needed here
          }
-    };
+     };
 
      const startImageScroll = () => {
          if (isImageNotices && shouldAnimateImages) {
@@ -108,7 +109,10 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
          if (videoElement) {
              console.log(`[DEBUG][NoticeBlock][Video Notices] Restarting single video.`);
              videoElement.currentTime = 0;
-             videoElement.play();
+             videoElement.play().catch(error => {
+                 console.error("[DEBUG][NoticeBlock][Video Notices] Error restarting video:", error);
+                 // Browsers might block autoplay if the user hasn't interacted
+             });
          }
      }
    };
@@ -169,27 +173,33 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                  <div className="h-full w-full overflow-hidden">
                     <div className="flex h-full animate-marquee-images" style={{ animationPlayState: 'running' }}>
                         {/* Render all images */}
-                        {notices.map((notice, index) => (
-                             <div key={`${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2">
-                                 <Image
-                                     src={notice.imageUrl}
-                                     alt={notice.title}
-                                     width={200} // Specify a width for optimization, adjust as needed
-                                     height={200} // Specify a height for optimization, adjust based on aspect ratio
-                                     className="h-full w-auto object-contain rounded-md"
-                                     onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading Image:`, notice.imageUrl, e)}
-                                 />
-                             </div>
-                         ))}
+                        {notices.map((notice, index) => {
+                            // Add console log here
+                            console.log(`[DEBUG][NoticeBlock][Image Notices] Rendering image with URL: ${notice.imageUrl}`);
+                            return (
+                                <div key={`${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2 relative"> {/* Add relative positioning */}
+                                    {/* Use next/image component */}
+                                    <Image
+                                        src={notice.imageUrl} // Ensure this is a valid relative path like /uploads/image.jpg
+                                        alt={notice.title}
+                                        fill // Use fill to make the image cover the container
+                                        style={{ objectFit: 'contain' }} // Use objectFit directly
+                                        className="rounded-md"
+                                        onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading Image:`, notice.imageUrl, e)}
+                                    />
+                                </div>
+                             );
+                         })}
                          {/* Duplicate images for seamless looping */}
                          {notices.map((notice, index) => (
-                             <div key={`dup-${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2" aria-hidden="true">
+                             <div key={`dup-${notice._id}-${index}`} className="flex-shrink-0 h-full w-auto px-2 relative" aria-hidden="true"> {/* Add relative positioning */}
+                                 {/* Use next/image component for duplicates */}
                                  <Image
-                                     src={notice.imageUrl}
+                                     src={notice.imageUrl} // Ensure this is a valid relative path
                                      alt="" // Alt text empty for decorative duplicate
-                                     width={200} // Specify a width for optimization
-                                     height={200} // Specify a height for optimization
-                                     className="h-full w-auto object-contain rounded-md"
+                                     fill // Use fill for duplicates as well
+                                     style={{ objectFit: 'contain' }} // Use objectFit directly
+                                     className="rounded-md"
                                      onError={(e) => console.error(`[DEBUG][NoticeBlock][Image Notices] Error loading duplicate Image:`, notice.imageUrl, e)}
                                  />
                              </div>
@@ -268,11 +278,12 @@ const NoticeBlock = ({ title, notices }: { title: string; notices: CollegeNotice
                          key={currentNotices[0].imageUrl} // Use URL as key to force remount on change if needed
                          src={currentNotices[0].imageUrl}
                          controls
-                         autoPlay // Added autoPlay attribute
-                         // muted // Keep unmuted as requested
-                         // Make video take full width/height within its container, maintain aspect ratio
+                         autoPlay
+                         // muted={false} // Unmuted by default based on user request
+                         muted // Keep muted for autoplay policy reasons
+                         loop={totalItems === 1} // Loop only if there is one video
                          className="w-full h-full object-contain rounded-md"
-                         onEnded={handleVideoEnded} // Call handler when video finishes
+                         onEnded={handleVideoEnded}
                          onError={(e) => console.error(`[DEBUG][NoticeBlock][Video Notices] Error loading Video:`, currentNotices[0].imageUrl, e)}
                        />
                       </div>
@@ -410,6 +421,7 @@ export default function Home() {
 
         {/* Title and Logo */}
         <div className="flex items-center justify-center space-x-3"> {/* Centered title and logo */}
+           {/* Use next/image for the logo */}
            <Image
              src="/logo.png" // Assuming logo.png is in the /public folder
              alt="College Logo"
@@ -448,3 +460,4 @@ export default function Home() {
     </div>
   );
 }
+
